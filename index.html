@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Loading…</title>
+  <style>
+    :root{
+      --bg:#F4F6F8;
+      --noteW: 200px;
+      --noteH: auto;
+      --notePad: 12px;
+      --gap: 16px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, sans-serif;background:var(--bg)}
+    header{padding:20px 16px 8px}
+    h1{margin:0;font-size:24px}
+    #app{padding:8px 16px 24px}
+    .toolbar{display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap}
+    .toolbar textarea{flex:1;min-height:90px;padding:10px}
+    .toolbar input, .toolbar select, .toolbar button{height:36px;padding:0 10px}
+    .toolbar .subrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    #boardWrap{position:relative;min-height:60vh;border-top:1px solid #0001;padding-top:16px;background-size:cover;background-position:center}
+    #board{position:relative;min-height:60vh;}
+    .note{
+      position:absolute; width:var(--noteW); padding:var(--notePad);
+      background:#C8F7C5; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.12);
+      cursor:grab; user-select:none; touch-action:none;
+      background-size:cover; background-position:center; background-repeat:no-repeat;
+    }
+    .note:active{cursor:grabbing}
+    .note .meta{opacity:.6;margin-top:6px;font-size:12px;display:flex;justify-content:space-between;gap:8px}
+    .note .text{white-space:pre-wrap;word-break:break-word}
+    .note .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+    .ghost{opacity:.6;outline:2px dashed #0003}
+    .grid{background-image:linear-gradient(transparent calc(100% - 1px), #0000000f 1px), linear-gradient(90deg, transparent calc(100% - 1px), #0000000f 1px); background-size: 120px 120px, 120px 120px;}
+    .hint{font-size:12px;opacity:.65;margin-left:auto}
+    .pill{font-size:12px;padding:4px 8px;border-radius:999px;background:#0000000a}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="screenTitle">포스트잇 보드</h1>
+  </header>
+
+  <div id="app">
+    <div class="toolbar">
+      <input id="nick" placeholder="닉네임" style="width:160px" />
+      <textarea id="text" placeholder="메시지"></textarea>
+      <div class="subrow">
+        <label>폰트크기
+          <select id="fs">
+            <option>14</option><option selected>16</option><option>18</option><option>20</option><option>22</option><option>24</option><option>28</option><option>32</option>
+          </select>
+        </label>
+        <button id="btnAdd">올리기</button>
+        <span class="hint">드래그해서 위치 저장 가능</span>
+        <label class="pill"><input type="checkbox" id="gridToggle"/> 그리드</label>
+      </div>
+    </div>
+
+    <div id="boardWrap" class="grid">
+      <div id="board"></div>
+    </div>
+  </div>
+
+  <script>
+    const GAS = 'https://script.google.com/macros/s/xxxxxxxxxxxxxxxxxxxxxxxx/exec'; // ← 웹앱 URL
+    const LS = window.localStorage;
+
+    // ------- Local Draft (로컬 초안) -------
+    const DRAFT_KEY = 'postit.draft.v1';
+    function loadDraft(){
+      try{
+        const j = JSON.parse(LS.getItem(DRAFT_KEY) || '{}');
+        if (j.nick) document.getElementById('nick').value = j.nick;
+        if (j.text) document.getElementById('text').value = j.text;
+        if (j.fs) document.getElementById('fs').value = String(j.fs);
+      }catch(e){}
+    }
+    function saveDraft(){
+      const nick = document.getElementById('nick').value;
+      const text = document.getElementById('text').value;
+      const fs = parseInt(document.getElementById('fs').value,10)||16;
+      LS.setItem(DRAFT_KEY, JSON.stringify({nick, text, fs, t:Date.now()}));
+    }
+
+    // ------- Meta Cache (설정/이미지) -------
+    const META_KEY = 'postit.meta.v1';
+    const META_SIG_KEY = 'postit.meta.sig.v1';
+    let META = null;
+
+    async function getMeta(){
+      // 1) 캐시 검사
+      try{
+        const cached = JSON.parse(LS.getItem(META_KEY)||'null');
+        const cachedSig = LS.getItem(META_SIG_KEY)||'';
+        if (cached && cached.sig && cached.sig === cachedSig){
+          META = cached;
+          applyMeta(META);
+        }
+      }catch(e){}
+      // 2) 서버에서 최신 수신
+      try{
+        const r = await fetch(GAS+'?action=meta', {mode:'cors'});
+        const j = await r.json();
+        if (j.ok){
+          META = j.meta;
+          LS.setItem(META_KEY, JSON.stringify(META));
+          LS.setItem(META_SIG_KEY, META.sig||'');
+          applyMeta(META);
+        }
+      }catch(e){
+        console.warn('meta fetch failed', e);
+      }
+    }
+
+    function applyMeta(meta){
+      if (!meta || !meta.settings) return;
+      // 타이틀/정렬/배경색
+      document.title = meta.settings.pageTitle || 'Post-it Board';
+      const h1 = document.getElementById('screenTitle');
+      h1.textContent = meta.settings.screenTitle || '포스트잇 보드';
+      h1.style.textAlign = meta.settings.titleAlign === 'center' ? 'center' : 'left';
+      document.documentElement.style.setProperty('--bg', meta.settings.bgColor || '#F4F6F8');
+      // 배경 이미지
+      const wrap = document.getElementById('boardWrap');
+      wrap.style.backgroundImage = meta.images?.bg ? `url("${meta.images.bg}")` : 'none';
+    }
+
+    // ------- CRUD -------
+    async function apiList(){
+      const r = await fetch(GAS+'?action=list', {mode:'cors'});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error||'list error');
+      return j.data;
+    }
+    async function apiCreate(payload){
+      const r = await fetch(GAS, {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({action:'create', payload})});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error||'create error');
+      return j.data;
+    }
+    async function apiUpdate(payload){
+      const r = await fetch(GAS, {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({action:'update', payload})});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error||'update error');
+      return j.data;
+    }
+    async function apiDelete(id){
+      const r = await fetch(GAS, {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({action:'delete', payload:{id}})});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error||'delete error');
+      return true;
+    }
+
+    // ------- Render / Drag -------
+    let NOTES = [];
+    function escapeHtml(s){return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+    function renderNotes(){
+      const board = document.getElementById('board');
+      board.innerHTML = '';
+      // 기본 배치: x,y 없을 경우 그리드처럼 흩뿌리기
+      let nx=0, ny=0; const step=140, startX=16, startY=16;
+      NOTES.forEach(n=>{
+        const el = document.createElement('div');
+        el.className = 'note';
+        el.style.left = (Number.isFinite(+n.x) ? +n.x : startX + (nx++ % 6)* (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--noteW')) + 16)) + 'px';
+        el.style.top  = (Number.isFinite(+n.y) ? +n.y : startY + (Math.floor(ny++/6))* step) + 'px';
+        el.style.fontSize = (parseInt(n.fs,10)||16) + 'px';
+        if (META?.images?.postit) {
+          el.style.backgroundImage = `url("${META.images.postit}")`;
+        }
+
+        el.dataset.id = n.id;
+        el.innerHTML = `
+          <div class="text">${escapeHtml(n.text)}</div>
+          <div class="meta">
+            <span>${escapeHtml(n.nick||'익명')} · ${n.tsKR||''}</span>
+            <span class="pill" title="폰트크기">${parseInt(n.fs,10)||16}px</span>
+          </div>
+          <div class="actions">
+            <button data-act="smaller">A-</button>
+            <button data-act="bigger">A+</button>
+            <button data-act="delete">삭제</button>
+          </div>
+        `;
+        hookDrag(el);
+        board.appendChild(el);
+      });
+    }
+
+    function hookDrag(el){
+      let startX=0, startY=0, origX=0, origY=0, dragging=false;
+
+      const onDown = (ev)=>{
+        const p = getPoint(ev);
+        dragging = true;
+        el.classList.add('ghost');
+        startX = p.x; startY = p.y;
+        origX = parseFloat(el.style.left||'0'); origY = parseFloat(el.style.top||'0');
+        ev.preventDefault();
+      };
+      const onMove = (ev)=>{
+        if(!dragging) return;
+        const p = getPoint(ev);
+        const dx = p.x - startX;
+        const dy = p.y - startY;
+        el.style.left = (origX + dx) + 'px';
+        el.style.top  = (origY + dy) + 'px';
+      };
+      const onUp = async (ev)=>{
+        if(!dragging) return;
+        dragging = false;
+        el.classList.remove('ghost');
+        const id = el.dataset.id;
+        const x = Math.round(parseFloat(el.style.left||'0'));
+        const y = Math.round(parseFloat(el.style.top||'0'));
+        try { await apiUpdate({id, x, y}); } catch(e){ console.warn(e); }
+      };
+
+      el.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+
+      el.addEventListener('touchstart', onDown, {passive:false});
+      window.addEventListener('touchmove', onMove, {passive:false});
+      window.addEventListener('touchend', onUp);
+      // 버튼 액션
+      el.querySelectorAll('button[data-act]').forEach(btn=>{
+        btn.addEventListener('click', async (e)=>{
+          e.stopPropagation();
+          const act = btn.dataset.act;
+          const id = el.dataset.id;
+          const note = NOTES.find(x=>x.id===id);
+          if (!note) return;
+          if (act==='delete'){
+            if (!confirm('삭제할까요?')) return;
+            await apiDelete(id);
+            await boot(); // 새로고침
+          } else if (act==='bigger' || act==='smaller'){
+            let fs = parseInt(note.fs,10)||16;
+            fs += (act==='bigger'? 2 : -2);
+            if (fs < 10) fs = 10;
+            if (fs > 48) fs = 48;
+            try{
+              const updated = await apiUpdate({id, fs});
+              Object.assign(note, updated);
+              el.style.fontSize = fs+'px';
+              el.querySelector('.pill').textContent = fs+'px';
+            }catch(err){ console.warn(err); }
+          }
+        });
+      });
+    }
+
+    function getPoint(ev){
+      if (ev.touches && ev.touches[0]) {
+        const t = ev.touches[0];
+        return {x:t.clientX, y:t.clientY};
+      }
+      return {x:ev.clientX, y:ev.clientY};
+    }
+
+    // ------- Boot / UI -------
+    async function boot(){
+      loadDraft();
+      await getMeta();
+      NOTES = await apiList();
+      renderNotes();
+    }
+
+    // 이벤트 바인딩
+    document.getElementById('nick').addEventListener('input', saveDraft);
+    document.getElementById('text').addEventListener('input', saveDraft);
+    document.getElementById('fs').addEventListener('change', saveDraft);
+
+    document.getElementById('btnAdd').addEventListener('click', async ()=>{
+      const nick = document.getElementById('nick').value.trim();
+      const text = document.getElementById('text').value.trim();
+      const fs = parseInt(document.getElementById('fs').value,10)||16;
+      if (!text) { alert('메시지를 입력하세요'); return; }
+      try{
+        await apiCreate({owner:'', nick, text, status:'active', x:16, y:16, fs});
+        // draft 초기화
+        document.getElementById('text').value = '';
+        saveDraft();
+        await boot();
+      }catch(e){
+        alert('등록 실패: '+(e.message||e));
+      }
+    });
+
+    document.getElementById('gridToggle').addEventListener('change', (e)=>{
+      const wrap = document.getElementById('boardWrap');
+      if (e.target.checked) wrap.classList.add('grid'); else wrap.classList.remove('grid');
+    });
+
+    // 시작
+    boot();
+  </script>
+</body>
+</html>
