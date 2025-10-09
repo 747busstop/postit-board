@@ -550,19 +550,6 @@
           .submitNote(noteModel);
       });
     }
-    const payload = Object.assign(
-      { action: 'submit' },
-      noteModel,
-      (API_KEY ? { apiKey: API_KEY } : {})
-    );
-    return apiPost(payload);
-  }
-
-  // 핑(네트워크 워밍업/상태확인 용)
-  function apiPing() {
-    // 깃허브 환경에선 REST 경로만 사용
-    return apiGet({ action: 'ping' }).catch(() => null);
-  }
 
   /* ===== [API BRIDGE END] ===== */
 
