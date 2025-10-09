@@ -17,7 +17,7 @@
       --cam-x: 0px;
       --cam-y: 0px;
       --scale: 1;
-      --topbar-h: 56px;
+      --topbar-h: 56px; /* JS에서 보정 */
     }
     *{ box-sizing:border-box; }
     html,body{ margin:0; height:100%; background:var(--bg); color:var(--text); font-family:"Noto Sans KR",system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
@@ -84,7 +84,7 @@
       border:none; padding:12px; color:#0b0f14;
       box-shadow: 0 8px 24px rgba(0,0,0,.28);
       display:flex; flex-direction:column;
-      z-index:1;
+      z-index:1; /* 클릭 시 개별 zIndex↑ */
     }
     .note .nick{ font-weight:700; color:#111; margin-top:6px; }
     .note .body{
@@ -130,7 +130,7 @@
       background:#ffffffcc; border:1px solid #e5e7eb; border-radius:12px; padding:6px;
       box-shadow: 0 4px 10px rgba(0,0,0,.12);
     }
-    /* ▼ 표준 속성으로 세로 슬라이더 구현 (Deprecation 경고 제거) */
+    /* ▼ 비표준 제거: 표준 방식으로 세로 슬라이더 */
     .fsDial input[type="range"]{
       writing-mode: vertical-lr;
       direction: rtl;
@@ -149,7 +149,7 @@
     .square{ width:48px; height:48px; display:inline-grid; place-items:center; border-radius:12px; background:#10151d; border:1px solid #293241; color:#dce7f5; }
     .square:active{ transform:scale(0.98); }
 
-    /* ▼ 표준 속성으로 세로 슬라이더 구현 (Deprecation 경고 제거) */
+    /* ▼ 비표준 제거: 표준 방식으로 세로 슬라이더 */
     #zoomRange{
       writing-mode: vertical-lr;
       direction: rtl;
@@ -200,7 +200,7 @@
     </div>
   </div>
 
-  <!-- ✅ 리스트 패널: body 직속 고정 오버레이 -->
+  <!-- 고정 리스트 패널 -->
   <aside id="panel" class="panel">
     <h3>승인된 메모</h3>
     <table class="table">
@@ -213,7 +213,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbyPZA-jl-eoUMnK72IQOcdqf6RG9ABwQNZxuk34q3-mphGCBjKxUzW1FxvuTKgg4N_2TQ/exec'; // ← 본인 Apps Script /exec URL로 교체
+    const API = 'https://script.google.com/macros/s/AKfycbw0rWlwTUl_m93vzXVv6pz7lK7biGtCzMJyWG3J9bWet_sErcMOKPb8GmtvQvO1m9tXzw/exec'; // ← 본인 Apps Script /exec URL로 교체
     const NOTE = { W: 280, H: 280 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .5, max: 2 };
 
@@ -230,7 +230,7 @@
       isPanning: false,
       panPrev: null,
       topZ: 10,
-      zMap: {}          // noteId -> zIndex
+      zMap: {}
     };
 
     const $root = document.documentElement;
@@ -343,7 +343,6 @@
     function renderNotes(){
       $world.innerHTML = '';
 
-      // z-index 계산 초기화(세션 유지)
       let maxZ = state.topZ;
       for (const n of state.notes) { if (state.zMap[n.id]) maxZ = Math.max(maxZ, state.zMap[n.id]); }
       state.topZ = Math.max(maxZ, 10);
@@ -363,9 +362,7 @@
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
 
-        // 단일 클릭: 최상단으로
         el.addEventListener('click', () => bringToFrontEl(el));
-        // 더블클릭: 해당 포스트잇 위치로
         el.addEventListener('dblclick', () => focusNote(n));
 
         $world.appendChild(el);
@@ -422,16 +419,13 @@
           </td>
         `;
 
-        // 행 클릭만으로도 이동
         tr.addEventListener('click', (e) => {
           if (e.target.closest('button')) return;
           moveToNote(n);
         });
 
-        // 이동 버튼
         tr.querySelector('.btn-move').onclick = () => moveToNote(n);
 
-        // 캡쳐 버튼
         tr.querySelector('.btn-cap').onclick  = async () => {
           const node = findNoteElById(n.id);
           if (node) await captureElem(node, `note-${(n.id||'')}.png`);
@@ -461,7 +455,6 @@
     }
 
     function moveToNote(n){
-      // 줌 보정: 너무 작거나(0.85↓) 너무 크면(1.2↑) 100%로
       if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) setZoomAtCenter(1.0);
       const center = { x: (n.x||0) + NOTE.W/2, y: (n.y||0) + NOTE.H/2 };
       focusWorldPoint(center);
@@ -571,7 +564,7 @@
     function loadDraft_(){ try{ return JSON.parse(localStorage.getItem('mn_draft')||'null'); }catch(e){ return null; } }
     function updateFabs(){ const hasDraft = !!state.draft; $fabGo.classList.toggle('hide', !hasDraft); $fabDel.classList.toggle('hide', !hasDraft); }
 
-    /* ====== Camera & Geometry (TOP-LEFT ORIGIN) ====== */
+    /* ====== Camera & Geometry ====== */
     function toWorld(cx, cy){
       const r = $board.getBoundingClientRect();
       const sx = cx - r.left;
@@ -687,7 +680,7 @@
     }
 
     /* ====== Utils ====== */
-    function setVar(k, v){ document.documentElement.style.setProperty(k, v); } // ★ 누락된 유틸 추가
+    function setVar(k, v){ document.documentElement.style.setProperty(k, v); } // ← 누락분 추가
     function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
     function getOrSetOwner_(){ let id = localStorage.getItem('mn_owner'); if (!id) { id = cryptoRandomId_(); localStorage.setItem('mn_owner', id); } return id; }
     function cryptoRandomId_(){ const a = new Uint8Array(16); crypto.getRandomValues(a); return [...a].map(x=>x.toString(16).padStart(2,'0')).join(''); }
