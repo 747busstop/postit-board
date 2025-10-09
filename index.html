@@ -72,26 +72,50 @@
       position:absolute; width:var(--note-size); height:var(--note-size);
       background-image: var(--postit-image);
       background-size: cover; background-position:center; background-repeat:no-repeat;
-      border-radius:0; /* ← 각지게 */
-      padding:12px; border:1px solid #2a3342; color:#0b0f14;
+      border:none;                 /* 테두리 제거 */
+      padding:12px; color:#0b0f14;
       box-shadow: 0 8px 24px rgba(0,0,0,.28);
-      display:flex; flex-direction:column; justify-content:space-between;
+      display:flex; flex-direction:column;
     }
-    .note .nick{ font-weight:700; margin-bottom:6px; color:#111; }
-    .note .body{ white-space:pre-wrap; line-height:1.25; color:#111; overflow:auto; }
     .note .ts{ color:#333; font-size:11px; text-align:right; }
 
     .note.draft{ outline: 3px dashed #ff8c00; outline-offset: 0; }
-    .note .controls{ display:flex; gap:6px; margin-top:8px; }
-    .note .controls button{ flex:1; padding:8px 10px; border-radius:10px; border:1px solid #d4d4d4; background:#fff; color:#111; }
-    .note .controls button.del{ background:#ffe8e8; border-color:#f3b6b6; }
 
-    .form input, .form textarea, .form .row input[type="range"]{
-      width:100%; padding:8px 10px; border-radius:10px; border:1px solid #cfd9e3; outline:none; font-family:inherit; background:#fff; color:#111;
-    }
-    .form textarea{ height:120px; resize:none; }
-    .dragbar{ cursor:grab; user-select:none; padding:6px 8px; margin:-6px -6px 8px; border:1px dashed #bbb; text-align:center; color:#333; background:#f7f7f7; }
+    /* Draft form layout */
+    .form{ display:flex; flex-direction:column; height:100%; }
+    .dragbar{ cursor:grab; user-select:none; padding:4px 6px; margin:-4px -4px 8px; border:1px dashed #bbb; text-align:center; color:#333; background:#f7f7f7; }
     .dragbar:active{ cursor:grabbing; }
+
+    .nickInput{
+      background:transparent; border:none; outline:none; color:#111; font-weight:700;
+      font-size:14px; padding:4px 6px; margin-bottom:6px;
+    }
+    .nickInput::placeholder{ color:#00000066; }
+
+    .textInput{
+      flex:1; background:transparent; border:none; outline:none; color:#111;
+      resize:none; padding:6px; line-height:1.3; /* 실제 글쓰기 영역 */
+    }
+    .textInput::placeholder{ color:#00000066; }
+
+    .bottomRow{
+      display:flex; gap:8px; align-items:center; margin-top:8px;
+    }
+    .fsBox{
+      flex:0 0 50%; display:flex; align-items:center; gap:6px;
+      background:#ffffffaa; border-radius:8px; padding:6px;
+    }
+    .fsBox input[type="range"]{ width:100%; }
+    .fsVal{ color:#111; font-size:12px; min-width:36px; text-align:right; }
+
+    .controls{
+      flex:0 0 50%; display:flex; gap:6px; justify-content:flex-end;
+    }
+    .controls button{
+      flex:0 0 48%; padding:10px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; color:#111;
+    }
+    .controls button:disabled{ opacity:.6; cursor:not-allowed; }
+    .controls .del{ background:#ffe8e8; border-color:#f3b6b6; }
 
     /* Right tools */
     .tools{
@@ -152,7 +176,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbwOP7ZP3VL84Ax2hwaZroNRG9HREJyZ6IJWpjCQGUnDZAmhdZhyRaEcIOkXC-j0YDhM5A/exec'; // 교체
+    const API = 'https://script.google.com/macros/s/AKfycbx_cpmtgrW2EL_tiaPvNe0klFsa5h0RUl8nc7c1aaO8_lwn3g66UPDqGxRebfS5n-JrCw/exec'; // ← 본인 /exec URL
     const NOTE = { W: 280, H: 280 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .5, max: 2 };
 
@@ -276,9 +300,9 @@
         el.style.height = NOTE.H+'px';
         const fs = (n.fs ? (n.fs + 'pt') : '14pt');
         el.innerHTML = `
-          <div class="nick">${escapeHtml(toStr(n.nick))}</div>
-          <div class="body" style="font-size:${fs}">${escapeHtml(toStr(n.text))}</div>
           <div class="ts">${formatStamp(n.tsKR, n.ts)}</div>
+          <div style="font-weight:700; color:#111; margin-top:-18px;">${escapeHtml(toStr(n.nick))}</div>
+          <div style="white-space:pre-wrap; line-height:1.25; color:#111; font-size:${fs}">${escapeHtml(toStr(n.text))}</div>
         `;
         el.addEventListener('dblclick', () => focusNote(n));
         $world.appendChild(el);
@@ -294,7 +318,6 @@
         el.style.height = NOTE.H+'px';
         el.innerHTML = makeDraftFormHTML_(d);
 
-        // Drag ONLY from dragbar
         enableDrag(el, (dx, dy) => {
           d.x = (d.x||0) + dx / CAMERA.scale;
           d.y = (d.y||0) + dy / CAMERA.scale;
@@ -376,16 +399,17 @@
       return `
         <div class="form">
           <div class="dragbar" title="이 막대를 드래그해서 이동">⋮⋮ 드래그</div>
-          <input id="dNick" maxlength="12" placeholder="닉네임(최대 12자)" value="${escapeAttr(toStr(d.nick||''))}">
-          <div class="row" style="display:flex; gap:8px; align-items:center; margin:6px 0;">
-            <div style="color:#222; font-size:12px; min-width:54px;">글자크기</div>
-            <input id="dFs" type="range" min="10" max="48" step="1" value="${fs}">
-            <div style="color:#222; font-size:12px; min-width:30px;">${fs}pt</div>
-          </div>
-          <textarea id="dText" placeholder="내용을 입력하세요 (제출 후 수정/삭제 불가)">${escapeText(toStr(d.text||''))}</textarea>
-          <div class="controls">
-            <button id="dSubmit">제출</button>
-            <button id="dDelete" class="del">삭제</button>
+          <input id="dNick" class="nickInput" maxlength="12" placeholder="닉네임(최대 12자)" value="${escapeAttr(toStr(d.nick||''))}">
+          <textarea id="dText" class="textInput" placeholder="내용을 입력하세요 (제출 후 수정/삭제 불가)" style="font-size:${fs}pt">${escapeText(toStr(d.text||''))}</textarea>
+          <div class="bottomRow">
+            <div class="fsBox">
+              <input id="dFs" type="range" min="10" max="48" step="1" value="${fs}">
+              <div class="fsVal">${fs}pt</div>
+            </div>
+            <div class="controls">
+              <button id="dSubmit">제출</button>
+              <button id="dDelete" class="del">삭제</button>
+            </div>
           </div>
         </div>
       `;
@@ -397,18 +421,27 @@
       const $fs   = root.querySelector('#dFs');
       const $submit = root.querySelector('#dSubmit');
       const $del    = root.querySelector('#dDelete');
-      const $fsVal  = $fs.nextElementSibling;
+      const $fsVal  = root.querySelector('.fsVal');
 
       const sync = () => {
-        d.nick = $nick.value.trim(); d.text = $text.value; d.fs = parseInt($fs.value,10)||16;
+        d.nick = $nick.value.trim();
+        d.text = $text.value;
+        d.fs = parseInt($fs.value,10)||16;
         $fsVal.textContent = d.fs+'pt';
+        $text.style.fontSize = d.fs+'pt'; // 미리보기 즉시 반영
         saveDraft_(d);
       };
 
-      $nick.oninput = sync; $text.oninput = sync; $fs.oninput = sync;
+      $nick.oninput = sync;
+      $text.oninput = sync;
+      $fs.oninput = sync;
 
       $submit.onclick = async () => {
         if (!d.nick || !d.text) { alert('닉네임과 내용을 입력하세요.'); return; }
+        if (!confirm('이 내용으로 제출하시겠습니까? 제출 후에는 수정/삭제가 불가합니다.')) return;
+
+        $submit.disabled = true; $del.disabled = true; $submit.textContent = '제출 중…';
+
         const fd = new URLSearchParams();
         fd.set('action','create');
         fd.set('owner', state.owner);
@@ -418,14 +451,18 @@
         fd.set('y', Math.round(d.y||0));
         fd.set('fs', d.fs||16);
 
-        const res = await fetch(API, { method:'POST', body: fd });
-        const j = await res.json();
-        if (!j.ok) { alert(j.error || '제출 실패'); return; }
-
-        clearDraft();
-        await refreshList();
-        fitAll();
-        alert('제출되었습니다. 승인 후 모두에게 보입니다.');
+        try{
+          const res = await fetch(API, { method:'POST', body: fd });
+          const j = await res.json();
+          if (!j.ok) { alert(j.error || '제출 실패'); $submit.disabled=false; $del.disabled=false; $submit.textContent='제출'; return; }
+          alert('제출이 완료되었습니다. 승인 후 모두에게 게시됩니다.');
+          clearDraft();
+          await refreshList();
+          fitAll();
+        }catch(err){
+          alert('네트워크 오류로 제출에 실패했습니다.');
+          $submit.disabled=false; $del.disabled=false; $submit.textContent='제출';
+        }
       };
 
       $del.onclick = clearDraft;
@@ -490,14 +527,13 @@
 
     /* ====== Pan / Wheel (with input-safe guards) ====== */
     function onPanStart(ev){
-      // 노트/입력/버튼/패널/툴스 안에서 시작하면 패닝 비활성화 (입력 가능)
       if (ev.target.closest('.note, input, textarea, button, select, .panel, .tools')) return;
 
       state.isPanning = true;
       state.panPrev = {x: ev.clientX, y: ev.clientY};
       $board.classList.add('panning');
 
-      // 더블탭(모바일)로 새 메모 생성
+      // 더블탭으로 새 메모 생성
       const now = Date.now();
       const dt  = now - state.lastTapTime;
       const dist = Math.hypot(ev.clientX - state.lastTapPos.x, ev.clientY - state.lastTapPos.y);
@@ -510,7 +546,7 @@
         state.lastTapPos = {x: ev.clientX, y: ev.clientY};
       }
 
-      ev.preventDefault(); // 텍스트 선택 방지 (단, 위 가드로 입력에는 영향 없음)
+      ev.preventDefault();
     }
     function onPanMove(ev){
       if (!state.isPanning || !state.panPrev) return;
@@ -525,7 +561,6 @@
     function onPanEnd(){ state.isPanning = false; state.panPrev = null; $board.classList.remove('panning'); }
 
     function onWheelPanZoom(e){
-      // 입력/노트/패널/툴스 위에서는 무시
       if (e.target.closest('.note, input, textarea, button, select, .panel, .tools')) return;
       e.preventDefault();
       if (e.ctrlKey) {
