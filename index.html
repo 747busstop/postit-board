@@ -17,6 +17,7 @@
       --cam-x: 0px;
       --cam-y: 0px;
       --scale: 1;
+      --topbar-h: 56px; /* JS에서 실제 높이로 보정 */
     }
     *{ box-sizing:border-box; }
     html,body{ margin:0; height:100%; background:var(--bg); color:var(--text); font-family:"Noto Sans KR",system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
@@ -34,45 +35,40 @@
       background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px;
     }
 
-    /* ====== NEW: 메인 레이아웃을 그리드로 전환 - 패널이 보드를 '밀어내는' 방식 ====== */
-    .main{
-      position:relative; height:100%;
-      display:grid; grid-template-columns: 0 1fr; grid-template-rows: 1fr;
-      transition: grid-template-columns .25s ease;
-    }
-    .main.dock-right{ grid-template-columns: 1fr 0; }
-    .main.open{ grid-template-columns: var(--panel-width) 1fr; }
-    .main.open.dock-right{ grid-template-columns: 1fr var(--panel-width); }
+    /* Layout */
+    .main{ position:relative; height:100%; overflow:hidden; }
 
-    /* 패널(그리드 아이템) */
+    /* 고정 오버레이 패널 (body 직속) */
     .panel{
-      width:100%; height:100%; overflow:auto; padding:12px;
+      position:fixed; top:var(--topbar-h); bottom:0; width:var(--panel-width);
       background:#0b0e13f2; border-right:1px solid #1f2430;
+      transform: translateX(calc(var(--panel-x, -100%)));
+      transition: transform .25s ease; overflow:auto; padding:12px;
+      left:0; z-index:1000;
     }
-    .main.dock-right .panel{ border-right:none; border-left:1px solid #1f2430; }
+    .panel.right{ left:auto; right:0; border-right:none; border-left:1px solid #1f2430; transform: translateX(calc(var(--panel-x, 100%))); }
+    .panel.open{ --panel-x: 0%; }
 
-    /* 리스트 테이블 */
+    /* 리스트 패널 - 테이블 스타일 */
     .panel h3{ margin:6px 0 8px; font-size:14px; color:#b7c2cf; }
     .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout: fixed; }
     .table th, .table td{ border-bottom:1px solid #273040; padding:8px; text-align:left; vertical-align:top; }
     .table th{ color:#b7c2cf; font-weight:600; position:sticky; top:0; background:#0b0e13f2; }
+    .table tr{ cursor:pointer; }
     .table td .ell{ display:block; white-space:normal; overflow:hidden; text-overflow:ellipsis; }
     .table td.name{ width:70px; word-break:break-word; }
     .table td.text{ width:auto; }
     .table td.act{ width:96px; }
-    .table tr{ cursor:pointer; }
     .table .rowbtn{ background:#10151d; border:1px solid #293241; color:#dce7f5; padding:6px 8px; border-radius:10px; min-width:44px; cursor:pointer; }
 
-    /* Board(그리드 아이템) */
+    /* Board */
     .board{
-      position:relative; width:100%; height:100%;
-      background-image: var(--board-image);
-      background-position:center; background-size:cover; background-repeat:no-repeat;
-      cursor: grab;
+      position:absolute; inset:0; background-image: var(--board-image);
+      background-position:center; background-size:cover; background-repeat:no-repeat; cursor: grab;
     }
     .board.panning{ cursor: grabbing; }
 
-    /* TOP-LEFT ORIGIN world */
+    /* TOP-LEFT ORIGIN */
     .world{
       position:absolute; left:0; top:0;
       transform: translate(var(--cam-x), var(--cam-y)) scale(var(--scale));
@@ -88,21 +84,30 @@
       border:none; padding:12px; color:#0b0f14;
       box-shadow: 0 8px 24px rgba(0,0,0,.28);
       display:flex; flex-direction:column;
+      z-index:1; /* 클릭 시 개별 z-index를 올림 */
     }
     .note .nick{ font-weight:700; color:#111; margin-top:6px; }
     .note .body{
       margin-top:6px; color:#111; line-height:1.25;
       overflow:auto; white-space:pre-wrap; word-break:break-word;
     }
+
     .note.draft{ outline: 3px dashed #ff8c00; outline-offset: 0; }
 
-    /* Draft 내부 입력(투명) */
-    .nickInput{ background:transparent; border:none; outline:none; color:#111; font-weight:700; font-size:14px; padding:4px 6px; margin:8px 0 6px; }
+    /* Draft 입력 */
+    .nickInput{
+      background:transparent; border:none; outline:none; color:#111; font-weight:700;
+      font-size:14px; padding:4px 6px; margin:8px 0 6px;
+    }
     .nickInput::placeholder{ color:#00000066; }
-    .textInput{ flex:1; background:transparent; border:none; outline:none; color:#111; resize:none; padding:6px; line-height:1.3; white-space:pre-wrap; }
+
+    .textInput{
+      flex:1; background:transparent; border:none; outline:none; color:#111;
+      resize:none; padding:6px; line-height:1.3; white-space:pre-wrap;
+    }
     .textInput::placeholder{ color:#00000066; }
 
-    /* 드래그 핸들/버튼/슬라이더: 포스트잇 밖으로 */
+    /* 드래그 핸들/버튼/슬라이더를 포스트잇 바깥으로 */
     .dragHandle{
       position:absolute; left:50%; top:-32px; transform:translateX(-50%);
       background:#ffffffcc; color:#111; border:1px dashed #9aa4b2; border-radius:10px;
@@ -110,27 +115,45 @@
       box-shadow: 0 4px 10px rgba(0,0,0,.12);
     }
     .dragHandle:active{ cursor:grabbing; }
-    .ctrlBar{ position:absolute; left:0; right:0; bottom:-46px; display:flex; gap:8px; justify-content:center; }
-    .ctrlBar button{ padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; color:#111; min-width:72px; }
+
+    .ctrlBar{
+      position:absolute; left:0; right:0; bottom:-46px; display:flex; gap:8px; justify-content:center;
+    }
+    .ctrlBar button{
+      padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; color:#111; min-width:72px;
+    }
     .ctrlBar button.del{ background:#ffe8e8; border-color:#f3b6b6; }
     .ctrlBar button:disabled{ opacity:.6; cursor:not-allowed; }
+
     .fsDial{
       position:absolute; right:-48px; top:50%; transform:translateY(-50%);
       background:#ffffffcc; border:1px solid #e5e7eb; border-radius:12px; padding:6px;
       box-shadow: 0 4px 10px rgba(0,0,0,.12);
     }
-    .fsDial input[type="range"]{ writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 28px; height: 140px; background:transparent; }
+    .fsDial input[type="range"]{
+      writing-mode: bt-lr; -webkit-appearance: slider-vertical;
+      width: 28px; height: 140px; background:transparent;
+    }
     .fsVal{ color:#111; font-size:12px; text-align:center; margin-top:4px; }
 
-    /* 우측 도구/FAB(보드 내부 절대배치) */
+    /* 우측 도구(정방형 버튼 + 세로 슬라이더) */
     .tools{
       position:absolute; right:12px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:8px; z-index:15;
     }
-    .zoomdock{ background:#10151d; border:1px solid #293241; padding:10px; border-radius:16px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+    .zoomdock{
+      background:#10151d; border:1px solid #293241; padding:10px; border-radius:16px; display:flex; flex-direction:column; align-items:center; gap:8px;
+    }
     .square{ width:48px; height:48px; display:inline-grid; place-items:center; border-radius:12px; background:#10151d; border:1px solid #293241; color:#dce7f5; }
     .square:active{ transform:scale(0.98); }
-    #zoomRange{ writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 32px; height: 140px; background: transparent; }
+
+    #zoomRange{
+      writing-mode: bt-lr; -webkit-appearance: slider-vertical;
+      width: 32px; height: 140px; background: transparent;
+    }
+
     .tool{ background:#10151d; border:1px solid #293241; color:#dce7f5; padding:10px 12px; border-radius:12px; min-width:44px; }
+
+    /* FABs */
     .fabs{ position:absolute; right:16px; bottom:16px; z-index:16; display:flex; flex-direction:column; gap:8px; }
     .fab{ background:#2563eb; border:none; color:white; font-weight:700; padding:14px 16px; border-radius:999px; box-shadow:0 8px 24px rgba(0,0,0,.25); min-width:56px; min-height:56px; }
     .fab.secondary{ background:#475569; }
@@ -142,51 +165,49 @@
 </head>
 <body>
   <div class="app">
-    <div class="topbar">
+    <div class="topbar" id="topbar">
       <button id="btnPanel" class="iconbtn" title="리스트">🗂️</button>
       <div class="title" id="title">온라인 포스트잇 게시판</div>
       <button id="btnPing" class="iconbtn" title="새로고침">↻</button>
     </div>
 
     <div class="main" id="main">
-      <!-- 그리드 1: 패널 -->
-      <aside id="panel" class="panel">
-        <h3>승인된 메모</h3>
-        <table class="table">
-          <thead>
-            <tr><th class="name">닉네임</th><th class="text">내용</th><th class="act">작업</th></tr>
-          </thead>
-          <tbody id="list"></tbody>
-        </table>
-      </aside>
-
-      <!-- 그리드 2: 보드 -->
       <div class="board" id="board">
         <div class="world" id="world"></div>
+      </div>
 
-        <!-- 도구/FAB는 보드 내부에 위치(패널과 겹치지 않음) -->
-        <div class="tools">
-          <div class="zoomdock">
-            <button id="zoomIn"  class="square" title="확대">＋</button>
-            <input id="zoomRange" type="range" min="0.5" max="2.0" step="0.01" value="1" />
-            <button id="zoomOut" class="square" title="축소">−</button>
-          </div>
-          <button id="fitAll" class="tool">⤢ 전체</button>
-          <button id="capBoard" class="tool">📷 캡처</button>
+      <div class="tools">
+        <div class="zoomdock">
+          <button id="zoomIn"  class="square" title="확대">＋</button>
+          <input id="zoomRange" type="range" min="0.5" max="2.0" step="0.01" value="1" />
+          <button id="zoomOut" class="square" title="축소">−</button>
         </div>
+        <button id="fitAll" class="tool">⤢ 전체</button>
+        <button id="capBoard" class="tool">📷 캡처</button>
+      </div>
 
-        <div class="fabs">
-          <button id="newDraft" class="fab">＋ 새 포스트잇</button>
-          <button id="gotoDraft" class="fab secondary hide">⇢ 작성중 이동</button>
-          <button id="clearDraft" class="fab warn hide">삭제</button>
-        </div>
+      <div class="fabs">
+        <button id="newDraft" class="fab">＋ 새 포스트잇</button>
+        <button id="gotoDraft" class="fab secondary hide">⇢ 작성중 이동</button>
+        <button id="clearDraft" class="fab warn hide">삭제</button>
       </div>
     </div>
   </div>
 
+  <!-- ✅ 리스트 패널: body 직속 고정 오버레이 -->
+  <aside id="panel" class="panel">
+    <h3>승인된 메모</h3>
+    <table class="table">
+      <thead>
+        <tr><th class="name">닉네임</th><th class="text">내용</th><th class="act">작업</th></tr>
+      </thead>
+      <tbody id="list"></tbody>
+    </table>
+  </aside>
+
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbzUnLpPMU-g88IJlFBXe82NYOu_ZA8SxRtEgziVLQcy_Y7VIivcKWKzBVzP4yxkzVmEfw/exec'; // ← 본인 /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbwxkfrQfcqyCXnYP0Ym7LGpYqnKz7l-aaw8gfCirwmSCX1KiX5CVi6MndsvvVwuMZjQSA/exec'; // ← 본인 /exec URL
     const NOTE = { W: 280, H: 280 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .5, max: 2 };
 
@@ -202,13 +223,14 @@
       lastTapPos: {x:0,y:0},
       isPanning: false,
       panPrev: null,
-      zTop: 1000 // 노트 bring-to-front용
+      topZ: 10,
+      zMap: {}          // noteId -> zIndex
     };
 
     const $root = document.documentElement;
     const $title = document.getElementById('title');
     const $panel = document.getElementById('panel');
-    const $main  = document.getElementById('main');
+    const $topbar = document.getElementById('topbar');
     const $listBody  = document.getElementById('list');
     const $world = document.getElementById('world');
     const $board = document.getElementById('board');
@@ -219,6 +241,10 @@
 
     /* ====== Boot ====== */
     (async function init(){
+      // 상단바 높이를 CSS 변수에 반영 → 패널 고정 위치 보정
+      const h = $topbar.getBoundingClientRect().height;
+      $root.style.setProperty('--topbar-h', h + 'px');
+
       await bootstrap();
       bindUI();
       renderAll();
@@ -236,22 +262,22 @@
       $title.textContent = toStr(s.screenTitle || '온라인 포스트잇 게시판');
       document.title = toStr(s.pageTitle || $title.textContent);
       setVar('--title-align', s.titleAlign || 'center');
-      $root.style.setProperty('--panel-width', (s.panelWidthPx || '320') + 'px');
       setVar('--bg', s.bgColor || '#0f1115');
 
       const ns = parseInt(s.noteSizePx || '280', 10);
-      NOTE.W = NOTE.H = ns; setVar('--note-size', ns+'px');
+      NOTE.W = NOTE.H = ns; $root.style.setProperty('--note-size', ns+'px');
 
       CAMERA.min = parseFloat(s.zoomMin || '0.5') || .5;
       CAMERA.max = parseFloat(s.zoomMax || '2.0') || 2;
       CAMERA.scale = parseFloat(s.zoomDefault || '1.0') || 1;
       $zoomRange.min = CAMERA.min; $zoomRange.max = CAMERA.max; $zoomRange.value = CAMERA.scale;
 
-      if (j.settings.assets && j.settings.assets.bg) setVar('--board-image', `url(${j.settings.assets.bg})`);
-      if (j.settings.assets && j.settings.assets.postit) setVar('--postit-image', `url(${j.settings.assets.postit})`);
+      if (j.settings.assets && j.settings.assets.bg) $root.style.setProperty('--board-image', `url(${j.settings.assets.bg})`);
+      if (j.settings.assets && j.settings.assets.postit) $root.style.setProperty('--postit-image', `url(${j.settings.assets.postit})`);
 
-      state.panelDock = (s.panelDock || 'left');
-      applyPanelLayout_();
+      const dock = (s.panelDock || 'left');
+      state.panelDock = dock;
+      $panel.classList.toggle('right', dock === 'right');
 
       state.notes = (j.data || []).map(sanitizeNote);
 
@@ -297,11 +323,7 @@
 
     function togglePanel(){
       state.panelOpen = !state.panelOpen;
-      applyPanelLayout_();
-    }
-    function applyPanelLayout_(){
-      $main.classList.toggle('dock-right', state.panelDock === 'right');
-      $main.classList.toggle('open', state.panelOpen);
+      $panel.classList.toggle('open', state.panelOpen);
     }
 
     async function refreshList(){
@@ -315,7 +337,11 @@
 
     function renderNotes(){
       $world.innerHTML = '';
-      let z = 1;
+
+      // z-index 계산 초기화(세션 유지)
+      let maxZ = state.topZ;
+      for (const n of state.notes) { if (state.zMap[n.id]) maxZ = Math.max(maxZ, state.zMap[n.id]); }
+      state.topZ = Math.max(maxZ, 10);
 
       for (const n of state.notes) {
         const el = document.createElement('div');
@@ -325,15 +351,19 @@
         el.style.top  = (n.y || 0) + 'px';
         el.style.width = NOTE.W+'px';
         el.style.height = NOTE.H+'px';
-        el.style.zIndex = z++;
+        if (state.zMap[n.id]) el.style.zIndex = state.zMap[n.id];
+
         el.innerHTML = `
           <div class="nick">${escapeHtml(toStr(n.nick || '익명'))}</div>
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
-        // C-1: 단일 클릭 시 최상단으로
-        el.addEventListener('click', () => bringNodeToFront_(el));
-        // 더블클릭은 화면 중앙으로(줌은 유지)
-        el.addEventListener('dblclick', () => focusNote(n, { zoomLikeDraft:false, openPanel:true, bringFront:true }));
+
+        // ✅ 단일 클릭으로 해당 포스트잇을 맨 위로
+        el.addEventListener('click', () => bringToFrontEl(el));
+
+        // 더블클릭 시 이동(기존 동작)
+        el.addEventListener('dblclick', () => focusNote(n));
+
         $world.appendChild(el);
       }
 
@@ -346,7 +376,6 @@
         el.style.top  = (d.y || 0) + 'px';
         el.style.width = NOTE.W+'px';
         el.style.height = NOTE.H+'px';
-        el.style.zIndex = state.zTop + 1; // 작성중은 항상 위쪽
         el.innerHTML = `
           <div class="dragHandle">드래그 하여 이동</div>
           <input id="dNick" class="nickInput" maxlength="12" placeholder="닉네임(최대 12자)" value="${escapeAttr(toStr(d.nick||''))}">
@@ -374,7 +403,7 @@
       }
     }
 
-    // C-2.2/2.3: 리스트 패널 행 클릭만으로 이동 + 버튼 클릭도 이동/캡쳐
+    // 왼쪽 패널: 승인된 메모만, (닉네임|내용|작업)
     function renderList(){
       const items = state.notes.filter(n => String(n.status).toLowerCase()==='approved')
         .sort((a,b)=> (+new Date(a.ts||a.tsKR)) - (+new Date(b.ts||b.tsKR)));
@@ -390,42 +419,76 @@
           </td>
         `;
 
-        // 행 전체 클릭 → 이동(줌 100% + 중앙 + 최상단 + 패널 자동 열기)
-        tr.addEventListener('click', () => focusNote(n, { zoomLikeDraft:true, openPanel:true, bringFront:true }));
+        // ✅ 행 전체 클릭만으로도 이동
+        tr.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return; // 버튼은 자체 핸들러
+          moveToNote(n);
+        });
 
-        // 버튼들은 이벤트 전파 막고 각각 동작
-        const btnMove = tr.querySelector('.btn-move');
-        const btnCap  = tr.querySelector('.btn-cap');
-        btnMove.addEventListener('click', (e) => {
-          e.stopPropagation();
-          focusNote(n, { zoomLikeDraft:true, openPanel:true, bringFront:true });
-        });
-        btnCap.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const node = findNoteNode_(n.id);
+        // 이동 버튼: 줌 보정 + 중앙 이동 + 맨 위로
+        tr.querySelector('.btn-move').onclick = () => moveToNote(n);
+
+        // 캡쳐 버튼
+        tr.querySelector('.btn-cap').onclick  = async () => {
+          const node = findNoteElById(n.id);
           if (node) await captureElem(node, `note-${(n.id||'')}.png`);
-        });
+        };
 
         $listBody.appendChild(tr);
       }
     }
 
-    // 공통 포커스: 옵션으로 줌/최상단/패널 제어
-    function focusNote(n, opts){
-      const { zoomLikeDraft=false, openPanel=false, bringFront=false } = (opts||{});
+    function findNoteElById(id){
+      return $world.querySelector(`.note[data-id="${CSS.escape(id||'')}"]`);
+    }
+
+    function bringToFrontEl(el){
+      state.topZ += 1;
+      const id = el.dataset.id || '';
+      state.zMap[id] = state.topZ;
+      el.style.zIndex = state.topZ;
+    }
+
+    function bringToFrontById(id){
+      const el = findNoteElById(id);
+      if (el) bringToFrontEl(el);
+    }
+
+    function moveToNote(n){
+      // 줌 보정 규칙: 너무 작거나(0.85 미만) 너무 크면(1.2 초과) 100%로
+      if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) {
+        setZoomAtCenter(1.0);
+      }
       const center = { x: (n.x||0) + NOTE.W/2, y: (n.y||0) + NOTE.H/2 };
-
-      if (zoomLikeDraft) {
-        const r = $board.getBoundingClientRect();
-        setZoomAtPoint(1.0, r.left + r.width/2, r.top + r.height/2);
-      }
       focusWorldPoint(center);
+      bringToFrontById(n.id);
+    }
 
-      if (bringFront) {
-        const node = findNoteNode_((n.id||''));
-        if (node) bringNodeToFront_(node);
-      }
-      if (openPanel && !state.panelOpen) togglePanel();
+    function focusNote(n){
+      const center = { x: (n.x||0) + NOTE.W/2, y: (n.y||0) + NOTE.H/2 };
+      focusWorldPoint(center);
+      if (!state.panelOpen) togglePanel();
+    }
+
+    function goToDraft(){ centerOnDraft(1.0); }
+
+    function fitAll(){
+      const rects = [];
+      for (const n of state.notes) rects.push({x:n.x||0,y:n.y||0,w:NOTE.W,h:NOTE.H});
+      if (state.draft) rects.push({x:state.draft.x||0,y:state.draft.y||0,w:NOTE.W,h:NOTE.H});
+      if (!rects.length) { setZoomAtCenter(CAMERA.scale); return; }
+
+      const bb = boundsOf(rects);
+      const pad = 80;
+      const vw = $board.clientWidth - pad*2;
+      const vh = $board.clientHeight - pad*2;
+      const s1 = vw / (bb.w||1);
+      const s2 = vh / (bb.h||1);
+      const s = clamp(Math.min(s1, s2), CAMERA.min, CAMERA.max);
+      setZoomAtCenter(s);
+
+      const center = { x: bb.x + bb.w/2, y: bb.y + bb.h/2 };
+      focusWorldPoint(center, false);
     }
 
     /* ====== Draft ====== */
@@ -495,8 +558,7 @@
       if (!state.draft) { alert('작성 중인 메모가 없습니다.'); return; }
       const d = state.draft;
       const center = { x: (d.x||0) + NOTE.W/2, y: (d.y||0) + NOTE.H/2 };
-      const r = $board.getBoundingClientRect();
-      setZoomAtPoint(scale, r.left + r.width/2, r.top + r.height/2);
+      setZoomAtPoint(scale, $board.getBoundingClientRect().left + $board.clientWidth/2, $board.getBoundingClientRect().top + $board.clientHeight/2);
       focusWorldPoint(center);
     }
 
@@ -504,10 +566,6 @@
     function saveDraft_(d){ localStorage.setItem('mn_draft', JSON.stringify(d)); }
     function loadDraft_(){ try{ return JSON.parse(localStorage.getItem('mn_draft')||'null'); }catch(e){ return null; } }
     function updateFabs(){ const hasDraft = !!state.draft; $fabGo.classList.toggle('hide', !hasDraft); $fabDel.classList.toggle('hide', !hasDraft); }
-
-    /* ====== Z-order helpers ====== */
-    function bringNodeToFront_(node){ node.style.zIndex = ++state.zTop; }
-    function findNoteNode_(id){ return $world.querySelector(`.note[data-id="${CSS.escape(id||'')}"]`); }
 
     /* ====== Camera & Geometry (TOP-LEFT ORIGIN) ====== */
     function toWorld(cx, cy){
@@ -551,7 +609,7 @@
       setCamVars_();
     }
     function updateCamera(x,y,scale){ CAMERA.x = x; CAMERA.y = y; CAMERA.scale = scale; $zoomRange.value = CAMERA.scale; setCamVars_(); }
-    function setCamVars_(){ setVar('--scale', CAMERA.scale); setVar('--cam-x', CAMERA.x+'px'); setVar('--cam-y', CAMERA.y+'px'); }
+    function setCamVars_(){ $root.style.setProperty('--scale', CAMERA.scale); $root.style.setProperty('--cam-x', CAMERA.x+'px'); $root.style.setProperty('--cam-y', CAMERA.y+'px'); }
     function boundsOf(rects){
       const xs = rects.map(r=>r.x), ys = rects.map(r=>r.y);
       const xe = rects.map(r=>r.x+r.w), ye = rects.map(r=>r.y+r.h);
@@ -630,7 +688,6 @@
     function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
     function getOrSetOwner_(){ let id = localStorage.getItem('mn_owner'); if (!id) { id = cryptoRandomId_(); localStorage.setItem('mn_owner', id); } return id; }
     function cryptoRandomId_(){ const a = new Uint8Array(16); crypto.getRandomValues(a); return [...a].map(x=>x.toString(16).padStart(2,'0')).join(''); }
-    function setVar(k, v){ $root.style.setProperty(k, v); }
     function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
     function escapeAttr(s){ return String(s).replace(/"/g, '&quot;'); }
@@ -657,7 +714,7 @@
       handle.addEventListener('pointerdown', (ev)=>{
         prev = {x:ev.clientX, y:ev.clientY};
         handle.setPointerCapture(ev.pointerId);
-        ev.stopPropagation(); // 보드 패닝과 충돌 방지
+        ev.stopPropagation();
       });
       handle.addEventListener('pointermove', (ev)=>{
         if (!prev) return;
