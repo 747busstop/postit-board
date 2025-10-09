@@ -161,7 +161,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbxHzjMplUDsAWqxFS2v8j8xSGRq7oHsjk7MLFdHNJltpkjORFvp8CTpV_BZHgGcIwcnqg/exec'; // ← 교체!
+    const API = 'https://script.google.com/macros/s/AKfycbyS5HyRpA9iuSO92qnjfRfGCh8fz-11tYcdD8vt4J1bIzBoEs51eNfjfBxURwdhE_O5mw/exec'; // ← 교체!
     const NOTE = { W: 280, H: 280 };               // 기본 노트 크기(px) – 서버 settings로 덮어씀
     const CAMERA = { x: 0, y: 0, scale: 1, min: .5, max: 2 };
 
@@ -199,8 +199,8 @@
       state.settings = j.settings;
 
       // Apply theme & assets
-      $title.textContent = s.screenTitle || '온라인 포스트잇 게시판';
-      document.title = s.pageTitle || $title.textContent;
+      $title.textContent = toStr(s.screenTitle || '온라인 포스트잇 게시판');
+      document.title = toStr(s.pageTitle || $title.textContent);
       setVar('--title-align', s.titleAlign || 'center');
       setVar('--bg', s.bgColor || '#0f1115');
 
@@ -221,8 +221,8 @@
       setVar('--panel-width', (s.panelWidthPx || '320') + 'px');
       $panel.classList.toggle('right', dock === 'right');
 
-      // Load notes
-      state.notes = j.data || [];
+      // Load notes (+정규화)
+      state.notes = (j.data || []).map(sanitizeNote);
 
       // Draft: size sync
       if (state.draft) saveDraft_(Object.assign({}, state.draft));
@@ -278,7 +278,7 @@
       const url = `${API}?action=list&owner=${encodeURIComponent(state.owner)}`;
       const j = await (await fetch(url)).json();
       if (j.ok) {
-        state.notes = j.data || [];
+        state.notes = (j.data || []).map(sanitizeNote);
         renderAll();
       }
     }
@@ -292,7 +292,7 @@
     function renderNotes(){
       $world.innerHTML = '';
 
-      // Approved + 내 submitted
+      // Approved + 내 submitted (서버에서 이미 필터링)
       for (const n of state.notes) {
         const el = document.createElement('div');
         el.className = 'note';
@@ -303,9 +303,9 @@
 
         const fs = (n.fs ? (n.fs + 'pt') : '14pt');
         el.innerHTML = `
-          <div class="nick">${escapeHtml(n.nick || '')}</div>
-          <div class="body" style="font-size:${fs}">${escapeHtml(n.text || '')}</div>
-          <div class="ts">${formatKST(n.tsKR || n.ts)}</div>
+          <div class="nick">${escapeHtml(toStr(n.nick))}</div>
+          <div class="body" style="font-size:${fs}">${escapeHtml(toStr(n.text))}</div>
+          <div class="ts">${formatStamp(n.tsKR, n.ts)}</div>
         `;
         el.addEventListener('dblclick', () => focusNote(n));
         $world.appendChild(el);
@@ -343,11 +343,13 @@
       $list.innerHTML = '';
       for (const n of items) {
         const li = document.createElement('li');
-        const when = formatKST(n.tsKR || n.ts);
+        const when = formatStamp(n.tsKR, n.ts);
+        const txt = toStr(n.text);
+        const cut = txt.length > 120 ? txt.slice(0,120) + '…' : txt;
         li.innerHTML = `
-          <div><b>${escapeHtml(n.nick || '')}</b></div>
+          <div><b>${escapeHtml(toStr(n.nick))}</b></div>
           <div class="meta">${when}</div>
-          <div class="meta">${escapeHtml((n.text || '').slice(0, 120))}${(n.text||'').length>120?'…':''}</div>
+          <div class="meta">${escapeHtml(cut)}</div>
           <div class="row">
             <button>보기</button>
             <button>캡처</button>
@@ -371,7 +373,7 @@
       // 노트 중앙으로
       const center = { x: (n.x||0) + NOTE.W/2, y: (n.y||0) + NOTE.H/2 };
       focusWorldPoint(center);
-      if (!state.panelOpen) togglePanel(); // 열려 있으면 유지하고 싶으면 이 줄 제거
+      if (!state.panelOpen) togglePanel();
     }
 
     function goToDraft(){
@@ -405,13 +407,13 @@
       const fs = d.fs || 16;
       return `
         <div class="form">
-          <input id="dNick" maxlength="12" placeholder="닉네임(최대 12자)" value="${escapeAttr(d.nick||'')}">
+          <input id="dNick" maxlength="12" placeholder="닉네임(최대 12자)" value="${escapeAttr(toStr(d.nick||''))}">
           <div class="row" style="display:flex; gap:8px; align-items:center; margin:6px 0;">
             <div style="color:#222; font-size:12px; min-width:54px;">글자크기</div>
             <input id="dFs" type="range" min="10" max="48" step="1" value="${fs}">
             <div style="color:#222; font-size:12px; min-width:30px;">${fs}pt</div>
           </div>
-          <textarea id="dText" placeholder="내용을 입력하세요 (제출 후 수정/삭제 불가)">${escapeText(d.text||'')}</textarea>
+          <textarea id="dText" placeholder="내용을 입력하세요 (제출 후 수정/삭제 불가)">${escapeText(toStr(d.text||''))}</textarea>
           <div class="controls">
             <button id="dSubmit">제출</button>
             <button id="dDelete" class="del">삭제</button>
@@ -447,7 +449,7 @@
         fd.set('y', Math.round(d.y||0));
         fd.set('fs', d.fs||16);
 
-        const res = await fetch(API, { method:'POST', body: fd });
+        const res = await fetch(API, { method:'POST', body: fd }); // preflight 회피(헤더 X)
         const j = await res.json();
         if (!j.ok) { alert(j.error || '제출 실패'); return; }
 
@@ -493,7 +495,6 @@
       return { x: (sx - CAMERA.x) / CAMERA.scale, y: (sy - CAMERA.y) / CAMERA.scale };
     }
     function focusWorldPoint(p, keepScale=true){
-      // 카메라를 p가 보드 중앙 오도록 이동
       CAMERA.x = -p.x * CAMERA.scale;
       CAMERA.y = -p.y * CAMERA.scale;
       setCamVars_();
@@ -536,6 +537,12 @@
     }
 
     /* ====== Utils ====== */
+    function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
+    function formatStamp(tsKR, ts){
+      // tsKR는 그대로(문자열) 노출, 없으면 ts(Date/ISO) 파싱
+      if (toStr(tsKR)) return toStr(tsKR);
+      try { return ts ? new Date(ts).toLocaleString('ko-KR') : ''; } catch(e){ return ''; }
+    }
     function getOrSetOwner_(){
       let id = localStorage.getItem('mn_owner');
       if (!id) { id = cryptoRandomId_(); localStorage.setItem('mn_owner', id); }
@@ -550,7 +557,19 @@
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
     function escapeAttr(s){ return String(s).replace(/"/g, '&quot;'); }
     function escapeText(s){ return String(s).replace(/</g, '&lt;'); }
-    function formatKST(ts){ try{ return ts ? new Date(ts).toLocaleString('ko-KR') : ''; }catch(e){ return ''; } }
+
+    function sanitizeNote(n){
+      return {
+        ...n,
+        nick: toStr(n.nick),
+        text: toStr(n.text),
+        tsKR: toStr(n.tsKR),
+        ts: toStr(n.ts),
+        x: Number(n.x) || 0,
+        y: Number(n.y) || 0,
+        fs: Number(n.fs) || 16
+      };
+    }
 
     function enableDrag(el, ondrag){
       let prev = null;
