@@ -458,7 +458,6 @@
     * - WEB_APP_URL: GAS 웹앱 배포 URL (https://script.google.com/macros/s/…/exec)
     * - API_KEY: (선택) 서버에서 요구 시 전송
     * - HAS_GAS: 기존 google.script.run 환경(내장 실행) 탐지
-    * - 서버 라우팅(다음 턴에 A에 반영 예정)
     *   GET  ?action=bootstrap&ownerToken=...&previousSignature=...&previousNotesSignature=...
     *   GET  ?action=list&ownerToken=...&previousNotesSignature=...
     *   GET  ?action=config&previousSignature=...
@@ -497,6 +496,15 @@
     } 
 
     // ===== 고수준 API (내장 GAS 우선, 아니면 REST로) =====
+    function apiBootstrap(ownerToken, settingsSig, notesSig) {
+      // GAS doGet?action=bootstrap 에 맞춰 호출
+      return apiGet({
+        action: 'bootstrap',
+        ownerToken: ownerToken || '',
+        previousSignature: settingsSig || '',
+        previousNotesSignature: notesSig || ''
+      });
+    }
     function apiSubmit(noteModel) {
       if (HAS_GAS) {
         return new Promise((resolve, reject) => {
@@ -505,11 +513,16 @@
         });
       }
       const payload = Object.assign(
-        { action:'submit' },
+        { action: 'submit' },
         noteModel,
         (API_KEY ? { apiKey: API_KEY } : {})
       );
       return apiPost(payload);
+    }
+
+    // [TWEAK] ping은 단순 REST로 처리 (GAS 내장 실행 함수 없이도 동작)
+    function apiPing() {
+      return apiGet({ action: 'ping' }).catch(() => null);
     }
 
     function apiConfig(settingsSig) {
@@ -538,14 +551,7 @@
         previousNotesSignature: notesSig || ''
       });
     }
-
-    function apiSubmit(noteModel) {
-      if (HAS_GAS) {
-        return new Promise((resolve, reject) => {
-          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)
-            .submitNote(noteModel);
-        });
-      }
+    
       const payload = Object.assign(
         { action: 'submit' },
         noteModel,
@@ -563,6 +569,8 @@
       return apiGet({ action: 'ping' }).catch(() => null);
     }
     /* ===== [API BRIDGE END] ===== */
+    
+    // --- 유틸/상수/상태 (기존과 동일) ---
     const SUPPORTS_ELEMENT_ZOOM = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('zoom','1');
     const OWNER_TOKEN_KEY='memorial_owner_token';
     let OWNER_TOKEN=localStorage.getItem(OWNER_TOKEN_KEY);
@@ -1969,7 +1977,6 @@
       updateDraftButtons();
       startSettingsAutoRefresh();
     }
-    // ===== [교체] 부트스트랩 에러 힌트 강화 =====
     function handleBootstrapError(err){
       hideLoading();
       const msg = String((err && err.message) || err || '');
