@@ -17,8 +17,6 @@
       --cam-x: 0px;
       --cam-y: 0px;
       --scale: 1;
-      --pad-left: 0px;   /* 패널 열릴 때 보드 밀기 */
-      --pad-right: 0px;
     }
     *{ box-sizing:border-box; }
     html,body{ margin:0; height:100%; background:var(--bg); color:var(--text); font-family:"Noto Sans KR",system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
@@ -36,19 +34,24 @@
       background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px;
     }
 
-    /* Layout */
-    .main{ position:relative; height:100%; overflow:hidden; padding-left:var(--pad-left); padding-right:var(--pad-right); transition: padding .25s ease; }
-    .panel{
-      position:absolute; top:0; bottom:0; width:var(--panel-width);
-      background:#0b0e13f2; border-right:1px solid #1f2430; z-index:20;
-      transform: translateX(calc(var(--panel-x, -100%)));
-      transition: transform .25s ease; overflow:auto; padding:12px;
-      left:0;
+    /* ====== NEW: 메인 레이아웃을 그리드로 전환 - 패널이 보드를 '밀어내는' 방식 ====== */
+    .main{
+      position:relative; height:100%;
+      display:grid; grid-template-columns: 0 1fr; grid-template-rows: 1fr;
+      transition: grid-template-columns .25s ease;
     }
-    .panel.right{ left:auto; right:0; border-right:none; border-left:1px solid #1f2430; transform: translateX(calc(var(--panel-x, 100%))); }
-    .panel.open{ --panel-x: 0%; }
+    .main.dock-right{ grid-template-columns: 1fr 0; }
+    .main.open{ grid-template-columns: var(--panel-width) 1fr; }
+    .main.open.dock-right{ grid-template-columns: 1fr var(--panel-width); }
 
-    /* 리스트 패널 - 테이블 스타일 */
+    /* 패널(그리드 아이템) */
+    .panel{
+      width:100%; height:100%; overflow:auto; padding:12px;
+      background:#0b0e13f2; border-right:1px solid #1f2430;
+    }
+    .main.dock-right .panel{ border-right:none; border-left:1px solid #1f2430; }
+
+    /* 리스트 테이블 */
     .panel h3{ margin:6px 0 8px; font-size:14px; color:#b7c2cf; }
     .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout: fixed; }
     .table th, .table td{ border-bottom:1px solid #273040; padding:8px; text-align:left; vertical-align:top; }
@@ -57,16 +60,19 @@
     .table td.name{ width:70px; word-break:break-word; }
     .table td.text{ width:auto; }
     .table td.act{ width:96px; }
-    .table .rowbtn{ background:#10151d; border:1px solid #293241; color:#dce7f5; padding:6px 8px; border-radius:10px; min-width:44px; }
+    .table tr{ cursor:pointer; }
+    .table .rowbtn{ background:#10151d; border:1px solid #293241; color:#dce7f5; padding:6px 8px; border-radius:10px; min-width:44px; cursor:pointer; }
 
-    /* Board */
+    /* Board(그리드 아이템) */
     .board{
-      position:absolute; inset:0; background-image: var(--board-image);
-      background-position:center; background-size:cover; background-repeat:no-repeat; cursor: grab;
+      position:relative; width:100%; height:100%;
+      background-image: var(--board-image);
+      background-position:center; background-size:cover; background-repeat:no-repeat;
+      cursor: grab;
     }
     .board.panning{ cursor: grabbing; }
 
-    /* TOP-LEFT ORIGIN */
+    /* TOP-LEFT ORIGIN world */
     .world{
       position:absolute; left:0; top:0;
       transform: translate(var(--cam-x), var(--cam-y)) scale(var(--scale));
@@ -86,25 +92,17 @@
     .note .nick{ font-weight:700; color:#111; margin-top:6px; }
     .note .body{
       margin-top:6px; color:#111; line-height:1.25;
-      overflow:auto; white-space:pre-wrap; word-break:break-word; /* 내용이 박스 밖으로 나가지 않게 */
+      overflow:auto; white-space:pre-wrap; word-break:break-word;
     }
-
     .note.draft{ outline: 3px dashed #ff8c00; outline-offset: 0; }
 
     /* Draft 내부 입력(투명) */
-    .nickInput{
-      background:transparent; border:none; outline:none; color:#111; font-weight:700;
-      font-size:14px; padding:4px 6px; margin:8px 0 6px;
-    }
+    .nickInput{ background:transparent; border:none; outline:none; color:#111; font-weight:700; font-size:14px; padding:4px 6px; margin:8px 0 6px; }
     .nickInput::placeholder{ color:#00000066; }
-
-    .textInput{
-      flex:1; background:transparent; border:none; outline:none; color:#111;
-      resize:none; padding:6px; line-height:1.3; white-space:pre-wrap;
-    }
+    .textInput{ flex:1; background:transparent; border:none; outline:none; color:#111; resize:none; padding:6px; line-height:1.3; white-space:pre-wrap; }
     .textInput::placeholder{ color:#00000066; }
 
-    /* 드래그 핸들/버튼/슬라이더를 포스트잇 바깥으로 */
+    /* 드래그 핸들/버튼/슬라이더: 포스트잇 밖으로 */
     .dragHandle{
       position:absolute; left:50%; top:-32px; transform:translateX(-50%);
       background:#ffffffcc; color:#111; border:1px dashed #9aa4b2; border-radius:10px;
@@ -112,45 +110,27 @@
       box-shadow: 0 4px 10px rgba(0,0,0,.12);
     }
     .dragHandle:active{ cursor:grabbing; }
-
-    .ctrlBar{
-      position:absolute; left:0; right:0; bottom:-46px; display:flex; gap:8px; justify-content:center;
-    }
-    .ctrlBar button{
-      padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; color:#111; min-width:72px;
-    }
+    .ctrlBar{ position:absolute; left:0; right:0; bottom:-46px; display:flex; gap:8px; justify-content:center; }
+    .ctrlBar button{ padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; color:#111; min-width:72px; }
     .ctrlBar button.del{ background:#ffe8e8; border-color:#f3b6b6; }
     .ctrlBar button:disabled{ opacity:.6; cursor:not-allowed; }
-
     .fsDial{
       position:absolute; right:-48px; top:50%; transform:translateY(-50%);
       background:#ffffffcc; border:1px solid #e5e7eb; border-radius:12px; padding:6px;
       box-shadow: 0 4px 10px rgba(0,0,0,.12);
     }
-    .fsDial input[type="range"]{
-      writing-mode: bt-lr; -webkit-appearance: slider-vertical;
-      width: 28px; height: 140px; background:transparent;
-    }
+    .fsDial input[type="range"]{ writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 28px; height: 140px; background:transparent; }
     .fsVal{ color:#111; font-size:12px; text-align:center; margin-top:4px; }
 
-    /* 우측 도구(정방형 버튼 + 세로 슬라이더) */
+    /* 우측 도구/FAB(보드 내부 절대배치) */
     .tools{
       position:absolute; right:12px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:8px; z-index:15;
     }
-    .zoomdock{
-      background:#10151d; border:1px solid #293241; padding:10px; border-radius:16px; display:flex; flex-direction:column; align-items:center; gap:8px;
-    }
+    .zoomdock{ background:#10151d; border:1px solid #293241; padding:10px; border-radius:16px; display:flex; flex-direction:column; align-items:center; gap:8px; }
     .square{ width:48px; height:48px; display:inline-grid; place-items:center; border-radius:12px; background:#10151d; border:1px solid #293241; color:#dce7f5; }
     .square:active{ transform:scale(0.98); }
-
-    #zoomRange{
-      writing-mode: bt-lr; -webkit-appearance: slider-vertical;
-      width: 32px; height: 140px; background: transparent;
-    }
-
+    #zoomRange{ writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 32px; height: 140px; background: transparent; }
     .tool{ background:#10151d; border:1px solid #293241; color:#dce7f5; padding:10px 12px; border-radius:12px; min-width:44px; }
-
-    /* FABs */
     .fabs{ position:absolute; right:16px; bottom:16px; z-index:16; display:flex; flex-direction:column; gap:8px; }
     .fab{ background:#2563eb; border:none; color:white; font-weight:700; padding:14px 16px; border-radius:999px; box-shadow:0 8px 24px rgba(0,0,0,.25); min-width:56px; min-height:56px; }
     .fab.secondary{ background:#475569; }
@@ -169,6 +149,7 @@
     </div>
 
     <div class="main" id="main">
+      <!-- 그리드 1: 패널 -->
       <aside id="panel" class="panel">
         <h3>승인된 메모</h3>
         <table class="table">
@@ -179,31 +160,33 @@
         </table>
       </aside>
 
+      <!-- 그리드 2: 보드 -->
       <div class="board" id="board">
         <div class="world" id="world"></div>
-      </div>
 
-      <div class="tools">
-        <div class="zoomdock">
-          <button id="zoomIn"  class="square" title="확대">＋</button>
-          <input id="zoomRange" type="range" min="0.5" max="2.0" step="0.01" value="1" />
-          <button id="zoomOut" class="square" title="축소">−</button>
+        <!-- 도구/FAB는 보드 내부에 위치(패널과 겹치지 않음) -->
+        <div class="tools">
+          <div class="zoomdock">
+            <button id="zoomIn"  class="square" title="확대">＋</button>
+            <input id="zoomRange" type="range" min="0.5" max="2.0" step="0.01" value="1" />
+            <button id="zoomOut" class="square" title="축소">−</button>
+          </div>
+          <button id="fitAll" class="tool">⤢ 전체</button>
+          <button id="capBoard" class="tool">📷 캡처</button>
         </div>
-        <button id="fitAll" class="tool">⤢ 전체</button>
-        <button id="capBoard" class="tool">📷 캡처</button>
-      </div>
 
-      <div class="fabs">
-        <button id="newDraft" class="fab">＋ 새 포스트잇</button>
-        <button id="gotoDraft" class="fab secondary hide">⇢ 작성중 이동</button>
-        <button id="clearDraft" class="fab warn hide">삭제</button>
+        <div class="fabs">
+          <button id="newDraft" class="fab">＋ 새 포스트잇</button>
+          <button id="gotoDraft" class="fab secondary hide">⇢ 작성중 이동</button>
+          <button id="clearDraft" class="fab warn hide">삭제</button>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbzL4kamVlP8JUFa3cKT0oa2xQiJpyUvrdirX0cLgrawiqui-WQN8FlVz038S3SbLJJJ/exec'; // ← 본인 /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbzUnLpPMU-g88IJlFBXe82NYOu_ZA8SxRtEgziVLQcy_Y7VIivcKWKzBVzP4yxkzVmEfw/exec'; // ← 본인 /exec URL
     const NOTE = { W: 280, H: 280 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .5, max: 2 };
 
@@ -218,7 +201,8 @@
       lastTapTime: 0,
       lastTapPos: {x:0,y:0},
       isPanning: false,
-      panPrev: null
+      panPrev: null,
+      zTop: 1000 // 노트 bring-to-front용
     };
 
     const $root = document.documentElement;
@@ -252,6 +236,7 @@
       $title.textContent = toStr(s.screenTitle || '온라인 포스트잇 게시판');
       document.title = toStr(s.pageTitle || $title.textContent);
       setVar('--title-align', s.titleAlign || 'center');
+      $root.style.setProperty('--panel-width', (s.panelWidthPx || '320') + 'px');
       setVar('--bg', s.bgColor || '#0f1115');
 
       const ns = parseInt(s.noteSizePx || '280', 10);
@@ -265,10 +250,8 @@
       if (j.settings.assets && j.settings.assets.bg) setVar('--board-image', `url(${j.settings.assets.bg})`);
       if (j.settings.assets && j.settings.assets.postit) setVar('--postit-image', `url(${j.settings.assets.postit})`);
 
-      const dock = (s.panelDock || 'left');
-      state.panelDock = dock;
-      $panel.classList.toggle('right', dock === 'right');
-      applyPanelPadding_();
+      state.panelDock = (s.panelDock || 'left');
+      applyPanelLayout_();
 
       state.notes = (j.data || []).map(sanitizeNote);
 
@@ -314,17 +297,11 @@
 
     function togglePanel(){
       state.panelOpen = !state.panelOpen;
-      $panel.classList.toggle('open', state.panelOpen);
-      applyPanelPadding_();
+      applyPanelLayout_();
     }
-    function applyPanelPadding_(){
-      if (state.panelOpen) {
-        if (state.panelDock === 'left') { $main.style.setProperty('--pad-left', getComputedStyle($panel).width); $main.style.setProperty('--pad-right', '0px'); }
-        else { $main.style.setProperty('--pad-left', '0px'); $main.style.setProperty('--pad-right', getComputedStyle($panel).width); }
-      } else {
-        $main.style.setProperty('--pad-left', '0px');
-        $main.style.setProperty('--pad-right', '0px');
-      }
+    function applyPanelLayout_(){
+      $main.classList.toggle('dock-right', state.panelDock === 'right');
+      $main.classList.toggle('open', state.panelOpen);
     }
 
     async function refreshList(){
@@ -338,18 +315,25 @@
 
     function renderNotes(){
       $world.innerHTML = '';
+      let z = 1;
+
       for (const n of state.notes) {
         const el = document.createElement('div');
         el.className = 'note';
+        el.dataset.id = n.id || '';
         el.style.left = (n.x || 0) + 'px';
         el.style.top  = (n.y || 0) + 'px';
         el.style.width = NOTE.W+'px';
         el.style.height = NOTE.H+'px';
+        el.style.zIndex = z++;
         el.innerHTML = `
           <div class="nick">${escapeHtml(toStr(n.nick || '익명'))}</div>
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
-        el.addEventListener('dblclick', () => focusNote(n));
+        // C-1: 단일 클릭 시 최상단으로
+        el.addEventListener('click', () => bringNodeToFront_(el));
+        // 더블클릭은 화면 중앙으로(줌은 유지)
+        el.addEventListener('dblclick', () => focusNote(n, { zoomLikeDraft:false, openPanel:true, bringFront:true }));
         $world.appendChild(el);
       }
 
@@ -362,6 +346,7 @@
         el.style.top  = (d.y || 0) + 'px';
         el.style.width = NOTE.W+'px';
         el.style.height = NOTE.H+'px';
+        el.style.zIndex = state.zTop + 1; // 작성중은 항상 위쪽
         el.innerHTML = `
           <div class="dragHandle">드래그 하여 이동</div>
           <input id="dNick" class="nickInput" maxlength="12" placeholder="닉네임(최대 12자)" value="${escapeAttr(toStr(d.nick||''))}">
@@ -376,7 +361,6 @@
           </div>
         `;
 
-        // Drag from the outside handle
         enableDrag(el, (dx, dy) => {
           d.x = (d.x||0) + dx / CAMERA.scale;
           d.y = (d.y||0) + dy / CAMERA.scale;
@@ -390,7 +374,7 @@
       }
     }
 
-    // 왼쪽 패널: 승인된 메모만, (닉네임|내용|작업)
+    // C-2.2/2.3: 리스트 패널 행 클릭만으로 이동 + 버튼 클릭도 이동/캡쳐
     function renderList(){
       const items = state.notes.filter(n => String(n.status).toLowerCase()==='approved')
         .sort((a,b)=> (+new Date(a.ts||a.tsKR)) - (+new Date(b.ts||b.tsKR)));
@@ -405,43 +389,43 @@
             <button class="rowbtn btn-cap">캡쳐</button>
           </td>
         `;
-        tr.querySelector('.btn-move').onclick = () => focusNote(n);
-        tr.querySelector('.btn-cap').onclick  = async () => {
-          const node = [...$world.children].find(el => {
-            const left = parseFloat(el.style.left||0), top = parseFloat(el.style.top||0);
-            return Math.abs(left - (n.x||0))<1 && Math.abs(top - (n.y||0))<1;
-          });
+
+        // 행 전체 클릭 → 이동(줌 100% + 중앙 + 최상단 + 패널 자동 열기)
+        tr.addEventListener('click', () => focusNote(n, { zoomLikeDraft:true, openPanel:true, bringFront:true }));
+
+        // 버튼들은 이벤트 전파 막고 각각 동작
+        const btnMove = tr.querySelector('.btn-move');
+        const btnCap  = tr.querySelector('.btn-cap');
+        btnMove.addEventListener('click', (e) => {
+          e.stopPropagation();
+          focusNote(n, { zoomLikeDraft:true, openPanel:true, bringFront:true });
+        });
+        btnCap.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const node = findNoteNode_(n.id);
           if (node) await captureElem(node, `note-${(n.id||'')}.png`);
-        };
+        });
+
         $listBody.appendChild(tr);
       }
     }
 
-    function focusNote(n){
+    // 공통 포커스: 옵션으로 줌/최상단/패널 제어
+    function focusNote(n, opts){
+      const { zoomLikeDraft=false, openPanel=false, bringFront=false } = (opts||{});
       const center = { x: (n.x||0) + NOTE.W/2, y: (n.y||0) + NOTE.H/2 };
+
+      if (zoomLikeDraft) {
+        const r = $board.getBoundingClientRect();
+        setZoomAtPoint(1.0, r.left + r.width/2, r.top + r.height/2);
+      }
       focusWorldPoint(center);
-      if (!state.panelOpen) togglePanel();
-    }
 
-    function goToDraft(){ centerOnDraft(1.0); }
-
-    function fitAll(){
-      const rects = [];
-      for (const n of state.notes) rects.push({x:n.x||0,y:n.y||0,w:NOTE.W,h:NOTE.H});
-      if (state.draft) rects.push({x:state.draft.x||0,y:state.draft.y||0,w:NOTE.W,h:NOTE.H});
-      if (!rects.length) { setZoomAtCenter(CAMERA.scale); return; }
-
-      const bb = boundsOf(rects);
-      const pad = 80;
-      const vw = $board.clientWidth - pad*2;
-      const vh = $board.clientHeight - pad*2;
-      const s1 = vw / (bb.w||1);
-      const s2 = vh / (bb.h||1);
-      const s = clamp(Math.min(s1, s2), CAMERA.min, CAMERA.max);
-      setZoomAtCenter(s);
-
-      const center = { x: bb.x + bb.w/2, y: bb.y + bb.h/2 };
-      focusWorldPoint(center, false);
+      if (bringFront) {
+        const node = findNoteNode_((n.id||''));
+        if (node) bringNodeToFront_(node);
+      }
+      if (openPanel && !state.panelOpen) togglePanel();
     }
 
     /* ====== Draft ====== */
@@ -458,7 +442,7 @@
         d.text = $text.value;
         d.fs = parseInt($fs.value,10)||16;
         $fsVal.textContent = d.fs+'pt';
-        $text.style.fontSize = d.fs+'pt'; // 미리보기 즉시 반영
+        $text.style.fontSize = d.fs+'pt';
         saveDraft_(d);
       };
 
@@ -511,7 +495,8 @@
       if (!state.draft) { alert('작성 중인 메모가 없습니다.'); return; }
       const d = state.draft;
       const center = { x: (d.x||0) + NOTE.W/2, y: (d.y||0) + NOTE.H/2 };
-      setZoomAtPoint(scale, $board.getBoundingClientRect().left + $board.clientWidth/2, $board.getBoundingClientRect().top + $board.clientHeight/2);
+      const r = $board.getBoundingClientRect();
+      setZoomAtPoint(scale, r.left + r.width/2, r.top + r.height/2);
       focusWorldPoint(center);
     }
 
@@ -519,6 +504,10 @@
     function saveDraft_(d){ localStorage.setItem('mn_draft', JSON.stringify(d)); }
     function loadDraft_(){ try{ return JSON.parse(localStorage.getItem('mn_draft')||'null'); }catch(e){ return null; } }
     function updateFabs(){ const hasDraft = !!state.draft; $fabGo.classList.toggle('hide', !hasDraft); $fabDel.classList.toggle('hide', !hasDraft); }
+
+    /* ====== Z-order helpers ====== */
+    function bringNodeToFront_(node){ node.style.zIndex = ++state.zTop; }
+    function findNoteNode_(id){ return $world.querySelector(`.note[data-id="${CSS.escape(id||'')}"]`); }
 
     /* ====== Camera & Geometry (TOP-LEFT ORIGIN) ====== */
     function toWorld(cx, cy){
