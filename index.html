@@ -33,26 +33,23 @@
     .app{ display:grid; grid-template-rows:auto auto 1fr; height:100%; min-height:100vh; min-height:100dvh; }
     .main{ position:relative; height:100%; min-height:0; overflow:hidden; }
 
-    /* Top bar */
+    /* Top bar (이제 타이틀만) */
     .topbar{
-      position:relative; display:grid; grid-template-columns: auto 1fr;
-      gap:8px; align-items:center; padding:10px 12px; border-bottom:1px solid #20242b; background:#0b0e13aa; backdrop-filter: blur(6px);
+      position:relative; display:grid; grid-template-columns: 1fr;
+      align-items:center; padding:10px 12px; border-bottom:1px solid #20242b; background:#0b0e13aa; backdrop-filter: blur(6px);
     }
     .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; font-size:18px; letter-spacing:.2px; }
-    .iconbtn{
-      background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px;
-    }
 
-    /* 상단 툴바: PC/모바일 공통 사용
-       - 중앙: 줌/전체/캡처 묶음
-       - 우측: 작성/이동/삭제 */
+    /* 상단 툴바: 좌(패널), 중앙(줌/전체/캡처), 우(작성/이동/삭제) */
     .toolbar{
       display:flex; align-items:center; gap:12px;
       padding:8px 12px; border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(4px); z-index:60;
     }
+    .toolbar .left{ }
     .toolbar .zoomwrap{ flex:1; display:flex; justify-content:center; }
     .toolbar .group{ display:flex; gap:8px; align-items:center; }
     .toolbar .btn{ background:#10151d; border:1px solid #293241; color:#dce7f5; padding:8px 10px; border-radius:10px; min-width:40px; }
+    .toolbar .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; } /* 새 메모는 파란색으로 구분 */
     .toolbar input[type="range"]{ width: 180px; }
     @media (max-width: 420px){ .toolbar input[type="range"]{ width:120px; } }
 
@@ -76,7 +73,7 @@
     .table td .ell{ display:block; white-space:normal; overflow:hidden; text-overflow:ellipsis; }
     .table td.name{ width:70px; word-break:break-word; }
     .table td.text{ width:auto; }
-    .table td.act{ width:96px; }
+    .table td.act{ width:80px; }
     .table .rowbtn{ background:#10151d; border:1px solid #293241; color:#dce7f5; padding:6px 8px; border-radius:10px; min-width:44px; cursor:pointer; }
 
     /* 보드 */
@@ -116,18 +113,18 @@
     .dragHandle{
       position:absolute; left:50%; top:-32px; transform:translateX(-50%);
       background:#ffffffcc; color:#111; border:2px dotted #111; border-radius:10px;
-      padding:4px 10px; font-size:12px; user-select:none; cursor:grab; box-shadow: 0 4px 10px rgba(0,0,0,.12);
+      padding:4px 10px; font-size:14px; user-select:none; cursor:grab; box-shadow: 0 4px 10px rgba(0,0,0,.12);
     }
     .dragHandle:active{ cursor:grabbing; }
 
     .ctrlBar{ position:absolute; left:0; right:0; bottom:-52px; display:flex; gap:8px; justify-content:center; }
-    .ctrlBar button{ padding:8px 12px; border-radius:10px; border:2px dotted #111; background:#fff; color:#111; min-width:72px; font-weight:700; }
+    .ctrlBar button{ padding:8px 12px; border-radius:10px; border:2px dotted #111; background:#fff; color:#111; min-width:56px; font-weight:700; }
     .ctrlBar button.del{ background:#ffdfe0; }
     .ctrlBar button:disabled{ opacity:.6; cursor:not-allowed; }
 
-    /* 폰트 크기 다이얼: 포스트잇 ‘좌측 변 옆’ */
+    /* 폰트 크기 다이얼: 포스트잇 ‘우측 변 밖’ */
     .fsDial{
-      position:absolute; left:-72px; top:50%; transform:translateY(-50%);
+      position:absolute; right:-72px; left:auto; top:50%; transform:translateY(-50%);
       background:#ffffffcc; border:2px dotted #111; border-radius:12px; padding:6px; box-shadow: 0 4px 10px rgba(0,0,0,.12);
     }
     .fsDial input[type="range"]{ writing-mode: vertical-lr; direction: rtl; appearance: none; width: 28px; height: 140px; background:transparent; }
@@ -145,27 +142,32 @@
 <body>
   <div class="app">
     <div class="topbar" id="topbar">
-      <button id="btnPanel" class="iconbtn" title="리스트">🗂️</button>
       <div class="title" id="title">온라인 포스트잇 게시판</div>
     </div>
 
-    <!-- 상단 툴바: PC/모바일 공통 사용 -->
+    <!-- 상단 툴바: 좌(리스트), 중앙(줌/전체/캡처), 우(작성/이동/삭제) -->
     <div class="toolbar" id="toolbar">
+      <!-- 좌측: 리스트 패널 버튼 (아이콘) -->
+      <div class="group left">
+        <button id="btnPanel" class="btn" title="리스트 패널 열기/닫기" aria-label="리스트 패널">🗂️</button>
+      </div>
+
+      <!-- 중앙: [-][슬라이더][+][⤢][📷] -->
       <div class="zoomwrap">
-        <!-- 중앙 묶음: [-][슬라이더][+][전체][캡처] -->
         <div class="group">
-          <button id="zoomOutTop" class="btn" title="축소">−</button>
-          <input id="zoomRangeTop" type="range" min="0.2" max="2.0" step="0.01" value="1" />
-          <button id="zoomInTop" class="btn" title="확대">＋</button>
-          <button id="fitAllTop" class="btn">⤢ 전체</button>
-          <button id="capBoardTop" class="btn">📷 캡처</button>
+          <button id="zoomOutTop" class="btn" title="축소" aria-label="축소">−</button>
+          <input id="zoomRangeTop" type="range" min="0.2" max="2.0" step="0.01" value="1" aria-label="확대/축소 슬라이더" />
+          <button id="zoomInTop" class="btn" title="확대" aria-label="확대">＋</button>
+          <button id="fitAllTop" class="btn" title="전체 보기" aria-label="전체 보기">⤢</button>
+          <button id="capBoardTop" class="btn" title="보드 캡처" aria-label="보드 캡처">📷</button>
         </div>
       </div>
-      <!-- 우측 묶음: 작성/이동/삭제 (상태에 따라 토글) -->
+
+      <!-- 우측: 작성/이동/삭제 (상태에 따라 토글) -->
       <div class="group" id="actions">
-        <button id="btnNewTop" class="btn">＋ 새 포스트잇</button>
-        <button id="btnGoTop"  class="btn" style="display:none;">⇢ 작성중 이동</button>
-        <button id="btnDelTop" class="btn" style="display:none;background:#f87171;border-color:#f87171;">삭제</button>
+        <button id="btnNewTop" class="btn primary" title="새 메모" aria-label="새 메모">＋</button>
+        <button id="btnGoTop"  class="btn" style="display:none;" title="작성중으로 이동" aria-label="작성중으로 이동">🧭</button>
+        <button id="btnDelTop" class="btn" style="display:none;background:#f87171;border-color:#f87171;" title="작성중 삭제" aria-label="작성중 삭제">🗑️</button>
       </div>
     </div>
 
@@ -192,7 +194,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbwjEi0XJTMi4UfPhMi8CQnw_rT-QNakzDhOMhwRPfk8b7WQcKByEzn6_OdT2pplGam4hg/exec'; // ← 본인 Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbyFwub5v9V0FqeHZtqIw2fI-0_RqpxAZvalAm9ppwv1c5HKfb4-jj3gp0puZYTA8Hnh2w/exec'; // ← 본인 Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
@@ -407,7 +409,7 @@
         el.style.width = NOTE.W+'px';
         el.style.height = NOTE.H+'px';
         el.innerHTML = `
-          <div class="dragHandle">드래그 하여 이동</div>
+          <div class="dragHandle" title="드래그하여 이동" aria-label="드래그하여 이동">⤧</div>
           <input id="dNick" class="nickInput" maxlength="12" placeholder="닉네임(최대 12자)" value="${escapeAttr(toStr(d.nick||''))}">
           <textarea id="dText" class="textInput" placeholder="내용을 입력하세요 (제출 후 수정/삭제 불가)" style="font-size:${(d.fs||16)}pt">${escapeText(toStr(d.text||''))}</textarea>
           <div class="fsDial">
@@ -415,8 +417,8 @@
             <div class="fsVal">${d.fs||16}pt</div>
           </div>
           <div class="ctrlBar">
-            <button id="dSubmit">제출</button>
-            <button id="dDelete" class="del">삭제</button>
+            <button id="dSubmit" title="제출" aria-label="제출">✓</button>
+            <button id="dDelete" class="del" title="삭제" aria-label="삭제">🗑️</button>
           </div>
         `;
 
@@ -445,8 +447,8 @@
           <td class="name">${escapeHtml(toStr(n.nick||'익명'))}</td>
           <td class="text"><span class="ell">${escapeHtml(toStr(n.text))}</span></td>
           <td class="act">
-            <button class="rowbtn btn-move" style="margin-right:6px;">이동</button>
-            <button class="rowbtn btn-cap">캡쳐</button>
+            <button class="rowbtn btn-move" style="margin-right:6px;" title="이동" aria-label="이동">🧭</button>
+            <button class="rowbtn btn-cap"  title="캡처" aria-label="캡처">📷</button>
           </td>
         `;
         tr.addEventListener('click', (e) => { if (e.target.closest('button')) return; moveToNote(n); });
@@ -470,7 +472,9 @@
     function findNoteElById(id){ return $world.querySelector(`.note[data-id="${safeEscapeCss(id||'')}"]`); }
 
     function bringToFrontEl(el){
-      state.topZ += 1;
+      // 드래프트(9999 !important)보다 아래로만 올리기
+      const MAX_Z = 9998;
+      state.topZ = Math.min(MAX_Z, state.topZ + 1);
       const id = el.dataset.id || '';
       state.zMap[id] = state.topZ;
       el.style.zIndex = state.topZ;
@@ -481,11 +485,12 @@
       if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) setZoomAtCenter(1.0);
       const center = { x: clamp((n.x||0)+NOTE.W/2, 0, WORLD.W), y: clamp((n.y||0)+NOTE.H/2, 0, WORLD.H) };
       focusWorldPoint(center);
-      bringToFrontById(n.id);
+      bringToFrontById(n.id); // 선택 시 항상 맨 위(드래프트 바로 아래)
     }
     function focusNote(n){
       const center = { x: clamp((n.x||0)+NOTE.W/2, 0, WORLD.W), y: clamp((n.y||0)+NOTE.H/2, 0, WORLD.H) };
       focusWorldPoint(center);
+      bringToFrontById(n.id);
       if (!state.panelOpen) togglePanel();
     }
     function goToDraft(){ centerOnDraft(1.0); }
@@ -534,7 +539,7 @@
         if (!d.text) { alert('내용을 입력하세요.'); return; }
         if (!confirm('이 내용으로 제출하시겠습니까? 제출 후에는 수정/삭제가 불가합니다.')) return;
 
-        $submit.disabled = true; $del.disabled = true; $submit.textContent = '제출 중…';
+        $submit.disabled = true; $del.disabled = true; $submit.textContent = '✓';
 
         const x = Math.round(clamp(d.x||0, 0, Math.max(0, WORLD.W - NOTE.W)));
         const y = Math.round(clamp(d.y||0, 0, Math.max(0, WORLD.H - NOTE.H)));
@@ -553,10 +558,10 @@
           const j = await res.json();
           if (!j.ok) {
             alert(j.error || '제출 실패');
-            $submit.disabled=false; $del.disabled=false; $submit.textContent='제출';
+            $submit.disabled=false; $del.disabled=false; $submit.textContent='✓';
             return;
           }
-          // ✅ 성공 시: 알림창 없이, 화면에 그대로 "승인대기" 상태로 전환
+          // 성공 시: 알림창 없이 화면에 그대로 "승인대기" 상태로 전환
           const newNote = {
             id: j.id, owner: state.owner, nick: d.nick, text: d.text,
             status: 'submitted', ts: j.ts, tsKR: j.tsKR,
@@ -570,7 +575,7 @@
           refreshList();
         }catch(err){
           alert('네트워크 오류로 제출에 실패했습니다.');
-          $submit.disabled=false; $del.disabled=false; $submit.textContent='제출';
+          $submit.disabled=false; $del.disabled=false; $submit.textContent='✓';
         }
       };
 
@@ -642,7 +647,7 @@
       return { x:minx, y:miny, w:maxx-minx, h:maxy-miny };
     }
 
-    /* ====== Pan / Wheel / Pinch + 더블탭 + PC 스무딩/관성 ====== */
+    /* ====== Pan / Wheel / Pinch + 더블탭 ====== */
     const pointers = new Map(); // id -> {x,y,t}
     const pinch = { active:false, lastDist:0, lastMid:{x:0,y:0} };
 
@@ -655,7 +660,7 @@
         CAMERA.x += inertia.vx * dt;
         CAMERA.y += inertia.vy * dt;
         setCamVars_();
-        const damping = Math.pow(0.94, dt / 16); // 감쇠 조금 더 강하게 -> PC에서 부드럽게
+        const damping = Math.pow(0.94, dt / 16);
         inertia.vx *= damping; inertia.vy *= damping;
         if (Math.hypot(inertia.vx, inertia.vy) < 0.02) { stopInertia(); return; }
         inertia.raf = requestAnimationFrame(tick);
@@ -734,12 +739,11 @@
         const dx = ev.clientX - prev.x;
         const dy = ev.clientY - prev.y;
 
-        // 누적(프레임 스무딩)
-        pan.dx += dx; pan.dy += dy;
+        pan.dx += dx; pan.dy += dy; // 프레임 스무딩
         schedulePanApply();
 
-        // 최근 속도(평균) 갱신
-        const alpha = 0.35; // EMA로 부드럽게
+        // 최근 속도(EMA)
+        const alpha = 0.35;
         const vx = dx / dt, vy = dy / dt;
         pan.lastVX = alpha * vx + (1-alpha) * pan.lastVX;
         pan.lastVY = alpha * vy + (1-alpha) * pan.lastVY;
@@ -757,9 +761,11 @@
       if (pointers.size === 0){
         $board.classList.remove('panning');
         state.panPrev = null;
-        // 관성 시작 (PC에서 부드럽게)
+        // ★ PC(마우스)에서는 관성 비활성화
         const speed = Math.hypot(pan.lastVX, pan.lastVY);
-        if (wasDragging && speed > 0.02) startInertia(pan.lastVX, pan.lastVY);
+        if (wasDragging && speed > 0.02 && ev.pointerType !== 'mouse') {
+          startInertia(pan.lastVX, pan.lastVY);
+        }
         pan.lastVX = pan.lastVY = 0;
       }
     }
