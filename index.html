@@ -465,8 +465,8 @@
     *   GET  ?action=ping
     *   POST body: action=submit&apiKey=...&id=...&owner=...&nick=...&text=...&status=submitted&ts=...&x=...&y=...&fs=...
     * ================================================ */
-    const WEB_APP_URL = 'YOUR_WEB_APP_URL_HERE';   // ← 배포된 GAS Web App URL로 교체
-    const API_KEY     = '1Pv3ssm8AymA2cXN4jlVemZtwFhiP0P9/0W9a+eQRl4=';                        // ← 서버에서 쓰기 보호 시 setApiKey()와 동일한 값
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbznTT3KiD4xOqBKTbMBPYeLF_oGdks01oFipLFetm1AQ4NPsDtQgzqj4CewQB7BhMLXtw/exec';   // ← 배포된 GAS Web App URL로 교체
+    const API_KEY     = '1Pv3ssm8AymA2cXN4jlVemZtwFhiP0P9/0W9a+eQRl4='; //   ← 서버에서 쓰기 보호 시 setApiKey()와 동일한 값
     const HAS_GAS     = typeof google !== 'undefined'
                     && google && google.script && google.script.run;
 
