@@ -65,11 +65,13 @@
       cursor: grab;
     }
     .board.panning{ cursor: grabbing; }
+
+    /* TOP-LEFT ORIGIN */
     .world{
-      position:absolute; left:50%; top:50%;
+      position:absolute; left:0; top:0;           /* ← 좌상단 기준 */
       transform: translate(var(--cam-x), var(--cam-y)) scale(var(--scale));
-      transform-origin: 50% 50%;
-      width:30000px; height:30000px;  /* 가상의 넓은 캔버스 */
+      transform-origin: 0 0;                      /* ← 좌상단 원점 */
+      width:30000px; height:30000px;              /* 가상의 넓은 캔버스 */
     }
 
     /* Note */
@@ -240,7 +242,7 @@
       // Draft: size sync
       if (state.draft) saveDraft_(Object.assign({}, state.draft));
 
-      // Center to content
+      // Start view
       updateCamera(0, 0, CAMERA.scale);
       fitAll();
     }
@@ -269,7 +271,7 @@
       // === Wheel / Trackpad ===
       $board.addEventListener('wheel', onWheelPanZoom, {passive:false});
 
-      // ESC closes panel
+      // ESC / Arrow pan
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && state.panelOpen) togglePanel();
         if (e.key === 'ArrowLeft')  { CAMERA.x += 80; setCamVars_(); }
@@ -303,7 +305,6 @@
     function renderNotes(){
       $world.innerHTML = '';
 
-      // Approved + 내 submitted (서버에서 필터링)
       for (const n of state.notes) {
         const el = document.createElement('div');
         el.className = 'note';
@@ -342,9 +343,7 @@
           el.style.top  = d.y + 'px';
         });
 
-        // Wire form
         wireDraftForm_(el, d);
-
         $world.appendChild(el);
       }
     }
@@ -379,7 +378,16 @@
       }
     }
 
+    /* ====== Navigation helpers (TOP-LEFT ORIGIN) ====== */
+    function toWorld(cx, cy){
+      const r = $board.getBoundingClientRect();
+      const sx = cx - r.left;    // 보드 좌상단 기준
+      const sy = cy - r.top;
+      return { x: (sx - CAMERA.x) / CAMERA.scale, y: (sy - CAMERA.y) / CAMERA.scale };
+    }
+
     function focusNote(n){
+      // 화면 중앙에 해당 노트를 위치
       const center = { x: (n.x||0) + NOTE.W/2, y: (n.y||0) + NOTE.H/2 };
       focusWorldPoint(center);
       if (!state.panelOpen) togglePanel();
@@ -407,11 +415,181 @@
       const s = clamp(Math.min(s1, s2), CAMERA.min, CAMERA.max);
       setZoomAtCenter(s);
 
+      // 바운딩박스 중심을 화면 중앙에
       const center = { x: bb.x + bb.w/2, y: bb.y + bb.h/2 };
       focusWorldPoint(center, false);
     }
 
-    /* ====== Draft ====== */
+    function focusWorldPoint(p, keepScale=true){
+      // 월드 좌표 p가 화면 정중앙에 오도록 cam을 설정
+      const r = $board.getBoundingClientRect();
+      const cx = r.width / 2;
+      const cy = r.height / 2;
+      CAMERA.x = cx - p.x * CAMERA.scale;
+      CAMERA.y = cy - p.y * CAMERA.scale;
+      setCamVars_();
+    }
+
+    function setZoomAtCenter(newScale){
+      const r = $board.getBoundingClientRect();
+      const cx = r.left + r.width/2;
+      const cy = r.top  + r.height/2;
+      setZoomAtPoint(newScale, cx, cy);
+    }
+
+    function setZoomAtPoint(newScale, cx, cy){
+      const ns = clamp(newScale, CAMERA.min, CAMERA.max);
+      const before = CAMERA.scale;
+      const r = $board.getBoundingClientRect();
+      const sx = cx - r.left;                 // 보드 좌상단 기준 화면 좌표
+      const sy = cy - r.top;
+
+      // 줌 전 커서가 가리키던 월드 좌표
+      const wx = (sx - CAMERA.x) / before;
+      const wy = (sy - CAMERA.y) / before;
+
+      CAMERA.scale = ns;
+      // 같은 월드 좌표가 커서 아래 유지되도록 cam 보정
+      CAMERA.x = sx - wx * CAMERA.scale;
+      CAMERA.y = sy - wy * CAMERA.scale;
+
+      $zoomRange.value = CAMERA.scale;
+      setCamVars_();
+    }
+
+    function updateCamera(x,y,scale){
+      CAMERA.x = x; CAMERA.y = y; CAMERA.scale = scale;
+      $zoomRange.value = CAMERA.scale;
+      setCamVars_();
+    }
+    function setCamVars_(){
+      setVar('--scale', CAMERA.scale);
+      setVar('--cam-x', CAMERA.x+'px');
+      setVar('--cam-y', CAMERA.y+'px');
+    }
+    function boundsOf(rects){
+      const xs = rects.map(r=>r.x), ys = rects.map(r=>r.y);
+      const xe = rects.map(r=>r.x+r.w), ye = rects.map(r=>r.y+r.h);
+      const minx = Math.min(...xs), miny = Math.min(...ys);
+      const maxx = Math.max(...xe), maxy = Math.max(...ye);
+      return { x:minx, y:miny, w:maxx-minx, h:maxy-miny };
+    }
+
+    /* ====== Pan / Wheel ====== */
+    function onPanStart(ev){
+      state.isPanning = true;
+      state.panPrev = {x: ev.clientX, y: ev.clientY};
+      $board.classList.add('panning');
+
+      // double-tap detection
+      const now = Date.now();
+      const dt  = now - state.lastTapTime;
+      const dist = Math.hypot(ev.clientX - state.lastTapPos.x, ev.clientY - state.lastTapPos.y);
+      if (dt < 300 && dist < 12) {
+        const wpt = toWorld(ev.clientX, ev.clientY);
+        createDraftAt({x:wpt.x - NOTE.W/2, y:wpt.y - NOTE.H/2});
+        state.lastTapTime = 0;
+      } else {
+        state.lastTapTime = now;
+        state.lastTapPos = {x: ev.clientX, y: ev.clientY};
+      }
+
+      ev.preventDefault();
+    }
+    function onPanMove(ev){
+      if (!state.isPanning || !state.panPrev) return;
+      const dx = ev.clientX - state.panPrev.x;
+      const dy = ev.clientY - state.panPrev.y;
+      state.panPrev = {x: ev.clientX, y: ev.clientY};
+      CAMERA.x += dx;
+      CAMERA.y += dy;
+      setCamVars_();
+      ev.preventDefault();
+    }
+    function onPanEnd(){
+      state.isPanning = false;
+      state.panPrev = null;
+      $board.classList.remove('panning');
+    }
+
+    function onWheelPanZoom(e){
+      e.preventDefault();
+      if (e.ctrlKey) {
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        setZoomAtPoint(CAMERA.scale * factor, e.clientX, e.clientY);
+      } else {
+        const k = 1;
+        let dx = e.deltaX;
+        let dy = e.deltaY;
+        if (Math.abs(dx) < 1 && e.shiftKey) dx = dy; // Shift+휠 가로 스크롤
+        CAMERA.x -= dx * k;
+        CAMERA.y -= dy * k;
+        setCamVars_();
+      }
+    }
+
+    /* ====== Capture ====== */
+    async function captureElem(el, filename){
+      try{
+        if (!window.html2canvas) throw new Error('no html2canvas');
+        const canvas = await html2canvas(el, {backgroundColor: null, useCORS: true, scale: 2});
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = filename || 'capture.png';
+        a.click();
+      } catch (e) {
+        window.print(); // fallback
+      }
+    }
+
+    /* ====== Utils ====== */
+    function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
+    function formatStamp(tsKR, ts){
+      if (toStr(tsKR)) return toStr(tsKR);
+      try { return ts ? new Date(ts).toLocaleString('ko-KR') : ''; } catch(e){ return ''; }
+    }
+    function getOrSetOwner_(){
+      let id = localStorage.getItem('mn_owner');
+      if (!id) { id = cryptoRandomId_(); localStorage.setItem('mn_owner', id); }
+      return id;
+    }
+    function cryptoRandomId_(){
+      const a = new Uint8Array(16); crypto.getRandomValues(a);
+      return [...a].map(x=>x.toString(16).padStart(2,'0')).join('');
+    }
+    function setVar(k, v){ $root.style.setProperty(k, v); }
+    function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+    function escapeAttr(s){ return String(s).replace(/"/g, '&quot;'); }
+    function escapeText(s){ return String(s).replace(/</g, '&lt;'); }
+
+    function sanitizeNote(n){
+      return {
+        ...n,
+        nick: toStr(n.nick),
+        text: toStr(n.text),
+        tsKR: toStr(n.tsKR),
+        ts: toStr(n.ts),
+        x: Number(n.x) || 0,
+        y: Number(n.y) || 0,
+        fs: Number(n.fs) || 16
+      };
+    }
+
+    function enableDrag(el, ondrag){
+      let prev = null;
+      el.addEventListener('pointerdown', (ev)=>{ prev = {x:ev.clientX, y:ev.clientY}; el.setPointerCapture(ev.pointerId); });
+      el.addEventListener('pointermove', (ev)=>{
+        if (!prev) return;
+        const dx = ev.clientX - prev.x, dy = ev.clientY - prev.y;
+        prev = {x:ev.clientX, y:ev.clientY};
+        ondrag(dx, dy);
+      });
+      el.addEventListener('pointerup', ()=> prev=null);
+      el.addEventListener('pointercancel', ()=> prev=null);
+    }
+
+    /* ====== Draft helpers ====== */
     function makeDraftFormHTML_(d){
       const fs = d.fs || 16;
       return `
@@ -500,175 +678,6 @@
       const hasDraft = !!state.draft;
       $fabGo.classList.toggle('hide', !hasDraft);
       $fabDel.classList.toggle('hide', !hasDraft);
-    }
-
-    /* ====== Camera & Geometry ====== */
-    function toWorld(cx, cy){
-      const r = $board.getBoundingClientRect();
-      const sx = cx - (r.left + r.width/2);
-      const sy = cy - (r.top  + r.height/2);
-      return { x: (sx - CAMERA.x) / CAMERA.scale, y: (sy - CAMERA.y) / CAMERA.scale };
-    }
-    function focusWorldPoint(p, keepScale=true){
-      CAMERA.x = -p.x * CAMERA.scale;
-      CAMERA.y = -p.y * CAMERA.scale;
-      setCamVars_();
-    }
-    function setZoomAtCenter(newScale){
-      const rect = $board.getBoundingClientRect();
-      const cx = rect.left + rect.width/2;
-      const cy = rect.top  + rect.height/2;
-      setZoomAtPoint(newScale, cx, cy);
-    }
-    function setZoomAtPoint(newScale, cx, cy){
-      const ns = clamp(newScale, CAMERA.min, CAMERA.max);
-      const before = CAMERA.scale;
-      const r = $board.getBoundingClientRect();
-      const sx = cx - (r.left + r.width/2);
-      const sy = cy - (r.top  + r.height/2);
-      // 현재 커서의 월드 좌표
-      const wx = (sx - CAMERA.x) / before;
-      const wy = (sy - CAMERA.y) / before;
-      CAMERA.scale = ns;
-      // 커서가 가리키던 월드 지점이 화면에서 그대로 보이도록 보정
-      CAMERA.x = sx - wx * CAMERA.scale;
-      CAMERA.y = sy - wy * CAMERA.scale;
-      $zoomRange.value = CAMERA.scale;
-      setCamVars_();
-    }
-    function updateCamera(x,y,scale){
-      CAMERA.x = x; CAMERA.y = y; CAMERA.scale = scale;
-      $zoomRange.value = CAMERA.scale;
-      setCamVars_();
-    }
-    function setCamVars_(){
-      setVar('--scale', CAMERA.scale);
-      setVar('--cam-x', CAMERA.x+'px');
-      setVar('--cam-y', CAMERA.y+'px');
-    }
-    function boundsOf(rects){
-      const xs = rects.map(r=>r.x), ys = rects.map(r=>r.y);
-      const xe = rects.map(r=>r.x+r.w), ye = rects.map(r=>r.y+r.h);
-      const minx = Math.min(...xs), miny = Math.min(...ys);
-      const maxx = Math.max(...xe), maxy = Math.max(...ye);
-      return { x:minx, y:miny, w:maxx-minx, h:maxy-miny };
-    }
-
-    /* ====== Pan / Wheel ====== */
-    function onPanStart(ev){
-      state.isPanning = true;
-      state.panPrev = {x: ev.clientX, y: ev.clientY};
-      $board.classList.add('panning');
-
-      // 더블탭 판정 준비
-      const now = Date.now();
-      const dt  = now - state.lastTapTime;
-      const dist = Math.hypot(ev.clientX - state.lastTapPos.x, ev.clientY - state.lastTapPos.y);
-      if (dt < 300 && dist < 12) {
-        // double-tap → 여기서 바로 처리 (드래그 시작 전에)
-        const wpt = toWorld(ev.clientX, ev.clientY);
-        createDraftAt({x:wpt.x - NOTE.W/2, y:wpt.y - NOTE.H/2});
-        state.lastTapTime = 0;
-      } else {
-        state.lastTapTime = now;
-        state.lastTapPos = {x: ev.clientX, y: ev.clientY};
-      }
-
-      ev.preventDefault();
-    }
-    function onPanMove(ev){
-      if (!state.isPanning || !state.panPrev) return;
-      const dx = ev.clientX - state.panPrev.x;
-      const dy = ev.clientY - state.panPrev.y;
-      state.panPrev = {x: ev.clientX, y: ev.clientY};
-      CAMERA.x += dx;
-      CAMERA.y += dy;
-      setCamVars_();
-      ev.preventDefault();
-    }
-    function onPanEnd(){
-      state.isPanning = false;
-      state.panPrev = null;
-      $board.classList.remove('panning');
-    }
-
-    function onWheelPanZoom(e){
-      // 트랙패드/휠: Ctrl(또는 핀치) → 줌, 아니면 패닝
-      e.preventDefault();
-      if (e.ctrlKey) {
-        const factor = Math.exp(-e.deltaY * 0.0015);
-        setZoomAtPoint(CAMERA.scale * factor, e.clientX, e.clientY);
-      } else {
-        // 일반 휠: 수직/수평 패닝 (Shift로 가로 강화)
-        const k = 1;
-        let dx = e.deltaX;
-        let dy = e.deltaY;
-        if (Math.abs(dx) < 1 && e.shiftKey) dx = dy; // Shift+휠로 가로 스크롤
-        CAMERA.x -= dx * k;
-        CAMERA.y -= dy * k;
-        setCamVars_();
-      }
-    }
-
-    /* ====== Capture ====== */
-    async function captureElem(el, filename){
-      try{
-        if (!window.html2canvas) throw new Error('no html2canvas');
-        const canvas = await html2canvas(el, {backgroundColor: null, useCORS: true, scale: 2});
-        const a = document.createElement('a');
-        a.href = canvas.toDataURL('image/png');
-        a.download = filename || 'capture.png';
-        a.click();
-      } catch (e) {
-        window.print(); // fallback
-      }
-    }
-
-    /* ====== Utils ====== */
-    function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
-    function formatStamp(tsKR, ts){
-      if (toStr(tsKR)) return toStr(tsKR);
-      try { return ts ? new Date(ts).toLocaleString('ko-KR') : ''; } catch(e){ return ''; }
-    }
-    function getOrSetOwner_(){
-      let id = localStorage.getItem('mn_owner');
-      if (!id) { id = cryptoRandomId_(); localStorage.setItem('mn_owner', id); }
-      return id;
-    }
-    function cryptoRandomId_(){
-      const a = new Uint8Array(16); crypto.getRandomValues(a);
-      return [...a].map(x=>x.toString(16).padStart(2,'0')).join('');
-    }
-    function setVar(k, v){ $root.style.setProperty(k, v); }
-    function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-    function escapeAttr(s){ return String(s).replace(/"/g, '&quot;'); }
-    function escapeText(s){ return String(s).replace(/</g, '&lt;'); }
-
-    function sanitizeNote(n){
-      return {
-        ...n,
-        nick: toStr(n.nick),
-        text: toStr(n.text),
-        tsKR: toStr(n.tsKR),
-        ts: toStr(n.ts),
-        x: Number(n.x) || 0,
-        y: Number(n.y) || 0,
-        fs: Number(n.fs) || 16
-      };
-    }
-
-    function enableDrag(el, ondrag){
-      let prev = null;
-      el.addEventListener('pointerdown', (ev)=>{ prev = {x:ev.clientX, y:ev.clientY}; el.setPointerCapture(ev.pointerId); });
-      el.addEventListener('pointermove', (ev)=>{
-        if (!prev) return;
-        const dx = ev.clientX - prev.x, dy = ev.clientY - prev.y;
-        prev = {x:ev.clientX, y:ev.clientY};
-        ondrag(dx, dy);
-      });
-      el.addEventListener('pointerup', ()=> prev=null);
-      el.addEventListener('pointercancel', ()=> prev=null);
     }
   </script>
 </body>
