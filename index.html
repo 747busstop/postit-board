@@ -62,7 +62,9 @@
       position:absolute; inset:0;
       background-image: var(--board-image);
       background-position:center; background-size:cover; background-repeat:no-repeat;
+      cursor: grab;
     }
+    .board.panning{ cursor: grabbing; }
     .world{
       position:absolute; left:50%; top:50%;
       transform: translate(var(--cam-x), var(--cam-y)) scale(var(--scale));
@@ -98,13 +100,15 @@
     .tools{
       position:absolute; right:12px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:8px; z-index:15;
     }
-    .tools .tool{
+    .zoomdock{
+      background:#10151d; border:1px solid #293241; padding:10px; border-radius:12px;
+    }
+    .zoomrow{ display:flex; align-items:center; gap:8px; }
+    .zoomrow input[type="range"]{ width:140px; }
+
+    .tool{
       background:#10151d; border:1px solid #293241; color:#dce7f5; padding:10px 12px; border-radius:12px; min-width:44px;
     }
-    .zoomdock{
-      background:#10151d; border:1px solid #293241; padding:10px; border-radius:12px; width:54px; display:flex; flex-direction:column; align-items:center; gap:8px;
-    }
-    .zoomdock input[type="range"]{ width:120px; transform:rotate(-90deg); }
 
     /* FABs */
     .fabs{
@@ -143,9 +147,11 @@
 
       <div class="tools">
         <div class="zoomdock">
-          <button id="zoomIn" class="tool">＋</button>
-          <input id="zoomRange" type="range" min="0.5" max="2.0" step="0.01" value="1">
-          <button id="zoomOut" class="tool">−</button>
+          <div class="zoomrow">
+            <button id="zoomOut" class="tool" title="축소">−</button>
+            <input id="zoomRange" type="range" min="0.5" max="2.0" step="0.01" value="1" />
+            <button id="zoomIn" class="tool" title="확대">＋</button>
+          </div>
         </div>
         <button id="fitAll" class="tool">⤢ 전체</button>
         <button id="capBoard" class="tool">📷 캡처</button>
@@ -153,16 +159,16 @@
 
       <div class="fabs">
         <button id="newDraft" class="fab">＋ 새 포스트잇</button>
-        <button id="gotoDraft" class="fab secondary">⇢ 작성중 이동</button>
-        <button id="clearDraft" class="fab warn">삭제</button>
+        <button id="gotoDraft" class="fab secondary hide">⇢ 작성중 이동</button>
+        <button id="clearDraft" class="fab warn hide">삭제</button>
       </div>
     </div>
   </div>
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbyS5HyRpA9iuSO92qnjfRfGCh8fz-11tYcdD8vt4J1bIzBoEs51eNfjfBxURwdhE_O5mw/exec'; // ← 교체!
-    const NOTE = { W: 280, H: 280 };               // 기본 노트 크기(px) – 서버 settings로 덮어씀
+    const API = 'https://script.google.com/macros/s/AKfycbygNzV4p_r5bO0vSTe_MgBRsbmFBLIagN95Bf6LuFhSltpFWOoAqYcF7_qXIho4hTeCfg/exec'; // 당신의 /exec URL
+    const NOTE = { W: 280, H: 280 };               // 서버 settings로 덮어씀
     const CAMERA = { x: 0, y: 0, scale: 1, min: .5, max: 2 };
 
     /* ====== State ====== */
@@ -172,7 +178,10 @@
       notes: [],
       draft: loadDraft_(),          // {nick,text,x,y,fs}
       panelOpen: false,
-      dblTapAt: 0
+      lastTapTime: 0,
+      lastTapPos: {x:0,y:0},
+      isPanning: false,
+      panPrev: null
     };
 
     const $root = document.documentElement;
@@ -182,12 +191,16 @@
     const $world = document.getElementById('world');
     const $board = document.getElementById('board');
     const $zoomRange = document.getElementById('zoomRange');
+    const $fabNew = document.getElementById('newDraft');
+    const $fabGo  = document.getElementById('gotoDraft');
+    const $fabDel = document.getElementById('clearDraft');
 
     /* ====== Boot ====== */
     (async function init(){
       await bootstrap();
       bindUI();
       renderAll();
+      updateFabs();
     })();
 
     async function bootstrap(){
@@ -227,7 +240,7 @@
       // Draft: size sync
       if (state.draft) saveDraft_(Object.assign({}, state.draft));
 
-      // Center a bit
+      // Center to content
       updateCamera(0, 0, CAMERA.scale);
       fitAll();
     }
@@ -235,37 +248,34 @@
     /* ====== UI ====== */
     function bindUI(){
       document.getElementById('btnPanel').onclick = togglePanel;
-      document.getElementById('btnPing').onclick = refreshList;
+      document.getElementById('btnPing').onclick = async ()=>{ await refreshList(); fitAll(); };
 
-      document.getElementById('zoomIn').onclick  = () => setZoom(clamp(CAMERA.scale + .1, CAMERA.min, CAMERA.max));
-      document.getElementById('zoomOut').onclick = () => setZoom(clamp(CAMERA.scale - .1, CAMERA.min, CAMERA.max));
-      $zoomRange.oninput = e => setZoom(parseFloat(e.target.value));
+      document.getElementById('zoomIn').onclick  = () => setZoomAtCenter(CAMERA.scale * 1.1);
+      document.getElementById('zoomOut').onclick = () => setZoomAtCenter(CAMERA.scale / 1.1);
+      $zoomRange.oninput = e => setZoomAtCenter(parseFloat(e.target.value));
       document.getElementById('fitAll').onclick = fitAll;
       document.getElementById('capBoard').onclick = () => captureElem($board, 'board.png');
 
-      document.getElementById('newDraft').onclick = () => createDraftAt({x:100, y:100});
-      document.getElementById('clearDraft').onclick = clearDraft;
-      document.getElementById('gotoDraft').onclick  = goToDraft;
+      $fabNew.onclick = () => createDraftAt({x:100, y:100});
+      $fabDel.onclick = clearDraft;
+      $fabGo.onclick  = goToDraft;
 
-      // 더블클릭/더블탭 새로 만들기
-      $board.addEventListener('dblclick', (ev) => {
-        const wpt = toWorld(ev.clientX, ev.clientY);
-        createDraftAt({x:wpt.x - NOTE.W/2, y:wpt.y - NOTE.H/2});
-      });
-      $board.addEventListener('pointerdown', (ev) => {
-        const now = Date.now();
-        if (now - state.dblTapAt < 300) {
-          const wpt = toWorld(ev.clientX, ev.clientY);
-          createDraftAt({x:wpt.x - NOTE.W/2, y:wpt.y - NOTE.H/2});
-          state.dblTapAt = 0;
-        } else {
-          state.dblTapAt = now;
-        }
-      });
+      // === Panning & double-tap ===
+      $board.addEventListener('pointerdown', onPanStart, {passive:false});
+      $board.addEventListener('pointermove', onPanMove,  {passive:false});
+      $board.addEventListener('pointerup',   onPanEnd,   {passive:false});
+      $board.addEventListener('pointercancel', onPanEnd, {passive:false});
 
-      // 패널 닫기 핫스팟
+      // === Wheel / Trackpad ===
+      $board.addEventListener('wheel', onWheelPanZoom, {passive:false});
+
+      // ESC closes panel
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && state.panelOpen) togglePanel();
+        if (e.key === 'ArrowLeft')  { CAMERA.x += 80; setCamVars_(); }
+        if (e.key === 'ArrowRight') { CAMERA.x -= 80; setCamVars_(); }
+        if (e.key === 'ArrowUp')    { CAMERA.y += 80; setCamVars_(); }
+        if (e.key === 'ArrowDown')  { CAMERA.y -= 80; setCamVars_(); }
       });
     }
 
@@ -287,12 +297,13 @@
     function renderAll(){
       renderNotes();
       renderList();
+      updateFabs();
     }
 
     function renderNotes(){
       $world.innerHTML = '';
 
-      // Approved + 내 submitted (서버에서 이미 필터링)
+      // Approved + 내 submitted (서버에서 필터링)
       for (const n of state.notes) {
         const el = document.createElement('div');
         el.className = 'note';
@@ -322,7 +333,7 @@
         el.style.height = NOTE.H+'px';
         el.innerHTML = makeDraftFormHTML_(d);
 
-        // Drag
+        // Drag draft
         enableDrag(el, (dx, dy) => {
           d.x = (d.x||0) + dx / CAMERA.scale;
           d.y = (d.y||0) + dy / CAMERA.scale;
@@ -358,7 +369,6 @@
         const [btnView, btnCap] = li.querySelectorAll('button');
         btnView.onclick = () => focusNote(n);
         btnCap.onclick  = async () => {
-          // 해당 노트 찾아 캡처
           const node = [...$world.children].find(el => {
             const left = parseFloat(el.style.left||0), top = parseFloat(el.style.top||0);
             return Math.abs(left - (n.x||0))<1 && Math.abs(top - (n.y||0))<1;
@@ -370,7 +380,6 @@
     }
 
     function focusNote(n){
-      // 노트 중앙으로
       const center = { x: (n.x||0) + NOTE.W/2, y: (n.y||0) + NOTE.H/2 };
       focusWorldPoint(center);
       if (!state.panelOpen) togglePanel();
@@ -387,7 +396,7 @@
       const rects = [];
       for (const n of state.notes) rects.push({x:n.x||0,y:n.y||0,w:NOTE.W,h:NOTE.H});
       if (state.draft) rects.push({x:state.draft.x||0,y:state.draft.y||0,w:NOTE.W,h:NOTE.H});
-      if (!rects.length) { setZoom(CAMERA.scale); return; }
+      if (!rects.length) { setZoomAtCenter(CAMERA.scale); return; }
 
       const bb = boundsOf(rects);
       const pad = 80;
@@ -396,10 +405,10 @@
       const s1 = vw / (bb.w||1);
       const s2 = vh / (bb.h||1);
       const s = clamp(Math.min(s1, s2), CAMERA.min, CAMERA.max);
-      setZoom(s);
+      setZoomAtCenter(s);
 
       const center = { x: bb.x + bb.w/2, y: bb.y + bb.h/2 };
-      focusWorldPoint(center, false); // no zoom change
+      focusWorldPoint(center, false);
     }
 
     /* ====== Draft ====== */
@@ -449,11 +458,11 @@
         fd.set('y', Math.round(d.y||0));
         fd.set('fs', d.fs||16);
 
-        const res = await fetch(API, { method:'POST', body: fd }); // preflight 회피(헤더 X)
+        const res = await fetch(API, { method:'POST', body: fd });
         const j = await res.json();
         if (!j.ok) { alert(j.error || '제출 실패'); return; }
 
-        clearDraft(); // local only
+        clearDraft();
         await refreshList();
         fitAll();
         alert('제출되었습니다. 승인 후 모두에게 보입니다.');
@@ -487,6 +496,12 @@
       try{ return JSON.parse(localStorage.getItem('mn_draft')||'null'); }catch(e){ return null; }
     }
 
+    function updateFabs(){
+      const hasDraft = !!state.draft;
+      $fabGo.classList.toggle('hide', !hasDraft);
+      $fabDel.classList.toggle('hide', !hasDraft);
+    }
+
     /* ====== Camera & Geometry ====== */
     function toWorld(cx, cy){
       const r = $board.getBoundingClientRect();
@@ -499,8 +514,25 @@
       CAMERA.y = -p.y * CAMERA.scale;
       setCamVars_();
     }
-    function setZoom(s){
-      CAMERA.scale = clamp(s, CAMERA.min, CAMERA.max);
+    function setZoomAtCenter(newScale){
+      const rect = $board.getBoundingClientRect();
+      const cx = rect.left + rect.width/2;
+      const cy = rect.top  + rect.height/2;
+      setZoomAtPoint(newScale, cx, cy);
+    }
+    function setZoomAtPoint(newScale, cx, cy){
+      const ns = clamp(newScale, CAMERA.min, CAMERA.max);
+      const before = CAMERA.scale;
+      const r = $board.getBoundingClientRect();
+      const sx = cx - (r.left + r.width/2);
+      const sy = cy - (r.top  + r.height/2);
+      // 현재 커서의 월드 좌표
+      const wx = (sx - CAMERA.x) / before;
+      const wy = (sy - CAMERA.y) / before;
+      CAMERA.scale = ns;
+      // 커서가 가리키던 월드 지점이 화면에서 그대로 보이도록 보정
+      CAMERA.x = sx - wx * CAMERA.scale;
+      CAMERA.y = sy - wy * CAMERA.scale;
       $zoomRange.value = CAMERA.scale;
       setCamVars_();
     }
@@ -522,6 +554,62 @@
       return { x:minx, y:miny, w:maxx-minx, h:maxy-miny };
     }
 
+    /* ====== Pan / Wheel ====== */
+    function onPanStart(ev){
+      state.isPanning = true;
+      state.panPrev = {x: ev.clientX, y: ev.clientY};
+      $board.classList.add('panning');
+
+      // 더블탭 판정 준비
+      const now = Date.now();
+      const dt  = now - state.lastTapTime;
+      const dist = Math.hypot(ev.clientX - state.lastTapPos.x, ev.clientY - state.lastTapPos.y);
+      if (dt < 300 && dist < 12) {
+        // double-tap → 여기서 바로 처리 (드래그 시작 전에)
+        const wpt = toWorld(ev.clientX, ev.clientY);
+        createDraftAt({x:wpt.x - NOTE.W/2, y:wpt.y - NOTE.H/2});
+        state.lastTapTime = 0;
+      } else {
+        state.lastTapTime = now;
+        state.lastTapPos = {x: ev.clientX, y: ev.clientY};
+      }
+
+      ev.preventDefault();
+    }
+    function onPanMove(ev){
+      if (!state.isPanning || !state.panPrev) return;
+      const dx = ev.clientX - state.panPrev.x;
+      const dy = ev.clientY - state.panPrev.y;
+      state.panPrev = {x: ev.clientX, y: ev.clientY};
+      CAMERA.x += dx;
+      CAMERA.y += dy;
+      setCamVars_();
+      ev.preventDefault();
+    }
+    function onPanEnd(){
+      state.isPanning = false;
+      state.panPrev = null;
+      $board.classList.remove('panning');
+    }
+
+    function onWheelPanZoom(e){
+      // 트랙패드/휠: Ctrl(또는 핀치) → 줌, 아니면 패닝
+      e.preventDefault();
+      if (e.ctrlKey) {
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        setZoomAtPoint(CAMERA.scale * factor, e.clientX, e.clientY);
+      } else {
+        // 일반 휠: 수직/수평 패닝 (Shift로 가로 강화)
+        const k = 1;
+        let dx = e.deltaX;
+        let dy = e.deltaY;
+        if (Math.abs(dx) < 1 && e.shiftKey) dx = dy; // Shift+휠로 가로 스크롤
+        CAMERA.x -= dx * k;
+        CAMERA.y -= dy * k;
+        setCamVars_();
+      }
+    }
+
     /* ====== Capture ====== */
     async function captureElem(el, filename){
       try{
@@ -539,7 +627,6 @@
     /* ====== Utils ====== */
     function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
     function formatStamp(tsKR, ts){
-      // tsKR는 그대로(문자열) 노출, 없으면 ts(Date/ISO) 파싱
       if (toStr(tsKR)) return toStr(tsKR);
       try { return ts ? new Date(ts).toLocaleString('ko-KR') : ''; } catch(e){ return ''; }
     }
