@@ -46,25 +46,18 @@
       left:0;
     }
     .panel.right{ left:auto; right:0; border-right:none; border-left:1px solid #1f2430; transform: translateX(calc(var(--panel-x, 100%))); }
-
     .panel.open{ --panel-x: 0%; }
 
-    .panel h3{ margin:6px 0 8px; font-size:14px; color:#b7c2cf; }
-
     /* 리스트 패널 - 테이블 스타일 */
-    .table{
-      width:100%; border-collapse:collapse; font-size:13px;
-    }
-    .table th, .table td{
-      border-bottom:1px solid #273040; padding:8px; text-align:left;
-    }
+    .panel h3{ margin:6px 0 8px; font-size:14px; color:#b7c2cf; }
+    .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout: fixed; }
+    .table th, .table td{ border-bottom:1px solid #273040; padding:8px; text-align:left; vertical-align:top; }
     .table th{ color:#b7c2cf; font-weight:600; position:sticky; top:0; background:#0b0e13f2; }
-    .table td .ell{
-      max-width: 160px; display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; vertical-align:top;
-    }
-    .table .rowbtn{
-      background:#10151d; border:1px solid #293241; color:#dce7f5; padding:6px 8px; border-radius:10px; min-width:44px;
-    }
+    .table td .ell{ display:block; white-space:normal; overflow:hidden; text-overflow:ellipsis; }
+    .table td.name{ width:70px; word-break:break-word; }
+    .table td.text{ width:auto; }
+    .table td.act{ width:96px; }
+    .table .rowbtn{ background:#10151d; border:1px solid #293241; color:#dce7f5; padding:6px 8px; border-radius:10px; min-width:44px; }
 
     /* Board */
     .board{
@@ -81,7 +74,7 @@
       width:30000px; height:30000px;
     }
 
-    /* Note */
+    /* Note (승인/보기용) */
     .note{
       position:absolute; width:var(--note-size); height:var(--note-size);
       background-image: var(--postit-image);
@@ -90,34 +83,55 @@
       box-shadow: 0 8px 24px rgba(0,0,0,.28);
       display:flex; flex-direction:column;
     }
+    .note .nick{ font-weight:700; color:#111; margin-top:6px; }
+    .note .body{
+      margin-top:6px; color:#111; line-height:1.25;
+      overflow:auto; white-space:pre-wrap; word-break:break-word; /* 내용이 박스 밖으로 나가지 않게 */
+    }
 
     .note.draft{ outline: 3px dashed #ff8c00; outline-offset: 0; }
 
-    /* Draft form layout (요구사항 반영) */
-    .form{ display:flex; flex-direction:column; height:100%; }
-    .dragbar{ cursor:grab; user-select:none; padding:4px 6px; margin:-4px -4px 8px; border:1px dashed #bbb; text-align:center; color:#333; background:#f7f7f7; }
-    .dragbar:active{ cursor:grabbing; }
-
+    /* Draft 내부 입력(투명) */
     .nickInput{
       background:transparent; border:none; outline:none; color:#111; font-weight:700;
-      font-size:14px; padding:4px 6px; margin:8px 0 6px; /* 한 줄 정도 아래로 */
+      font-size:14px; padding:4px 6px; margin:8px 0 6px;
     }
     .nickInput::placeholder{ color:#00000066; }
 
     .textInput{
       flex:1; background:transparent; border:none; outline:none; color:#111;
-      resize:none; padding:6px; line-height:1.3;
+      resize:none; padding:6px; line-height:1.3; white-space:pre-wrap;
     }
     .textInput::placeholder{ color:#00000066; }
 
-    .bottomCol{
-      display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;
+    /* 드래그 핸들/버튼/슬라이더를 포스트잇 바깥으로 */
+    .dragHandle{
+      position:absolute; left:50%; top:-32px; transform:translateX(-50%);
+      background:#ffffffcc; color:#111; border:1px dashed #9aa4b2; border-radius:10px;
+      padding:4px 10px; font-size:12px; user-select:none; cursor:grab;
+      box-shadow: 0 4px 10px rgba(0,0,0,.12);
     }
+    .dragHandle:active{ cursor:grabbing; }
 
-    /* 슬라이더를 투명하게, 트랙/볼만 보이게 */
-    .fsBox{ background:transparent; padding:0; display:flex; align-items:center; gap:8px; }
-    .fsVal{ color:#111; font-size:12px; min-width:36px; text-align:right; }
-    .fsBox input[type="range"]{ width:100%; background:transparent; }
+    .ctrlBar{
+      position:absolute; left:0; right:0; bottom:-46px; display:flex; gap:8px; justify-content:center;
+    }
+    .ctrlBar button{
+      padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; color:#111; min-width:72px;
+    }
+    .ctrlBar button.del{ background:#ffe8e8; border-color:#f3b6b6; }
+    .ctrlBar button:disabled{ opacity:.6; cursor:not-allowed; }
+
+    .fsDial{
+      position:absolute; right:-48px; top:50%; transform:translateY(-50%);
+      background:#ffffffcc; border:1px solid #e5e7eb; border-radius:12px; padding:6px;
+      box-shadow: 0 4px 10px rgba(0,0,0,.12);
+    }
+    .fsDial input[type="range"]{
+      writing-mode: bt-lr; -webkit-appearance: slider-vertical;
+      width: 28px; height: 140px; background:transparent;
+    }
+    .fsVal{ color:#111; font-size:12px; text-align:center; margin-top:4px; }
 
     /* 우측 도구(정방형 버튼 + 세로 슬라이더) */
     .tools{
@@ -129,12 +143,9 @@
     .square{ width:48px; height:48px; display:inline-grid; place-items:center; border-radius:12px; background:#10151d; border:1px solid #293241; color:#dce7f5; }
     .square:active{ transform:scale(0.98); }
 
-    /* 세로 슬라이더 */
     #zoomRange{
-      writing-mode: bt-lr;          /* 세로 */
-      -webkit-appearance: slider-vertical;
-      width: 32px; height: 140px;   /* 버튼 사이에 배치 */
-      background: transparent;
+      writing-mode: bt-lr; -webkit-appearance: slider-vertical;
+      width: 32px; height: 140px; background: transparent;
     }
 
     .tool{ background:#10151d; border:1px solid #293241; color:#dce7f5; padding:10px 12px; border-radius:12px; min-width:44px; }
@@ -162,7 +173,7 @@
         <h3>승인된 메모</h3>
         <table class="table">
           <thead>
-            <tr><th style="width:80px">닉네임</th><th>내용</th><th style="width:64px">이동</th><th style="width:64px">캡쳐</th></tr>
+            <tr><th class="name">닉네임</th><th class="text">내용</th><th class="act">작업</th></tr>
           </thead>
           <tbody id="list"></tbody>
         </table>
@@ -192,7 +203,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbwgJ_ShcSfwXKzO9JROvDbWHkWMPOPA42Ufx2uaYYmP0kIaBK_x7_Vy7zmAAJWTqOi2fQ/exec'; // ← 본인 /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbzL4kamVlP8JUFa3cKT0oa2xQiJpyUvrdirX0cLgrawiqui-WQN8FlVz038S3SbLJJJ/exec'; // ← 본인 /exec URL
     const NOTE = { W: 280, H: 280 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .5, max: 2 };
 
@@ -257,7 +268,6 @@
       const dock = (s.panelDock || 'left');
       state.panelDock = dock;
       $panel.classList.toggle('right', dock === 'right');
-      // 보드 밀기 준비
       applyPanelPadding_();
 
       state.notes = (j.data || []).map(sanitizeNote);
@@ -281,10 +291,10 @@
 
       $fabNew.onclick = () => {
         const wc = worldCenter();
-        createDraftAt({x: wc.x - NOTE.W/2, y: wc.y - NOTE.H/2}, true); // 생성 후 줌/센터
+        createDraftAt({x: wc.x - NOTE.W/2, y: wc.y - NOTE.H/2}, true);
       };
       $fabDel.onclick = clearDraft;
-      $fabGo.onclick  = () => centerOnDraft(1.0); // 작성중 이동 시 100% 줌으로 중앙
+      $fabGo.onclick  = () => centerOnDraft(1.0);
 
       // Pan
       $board.addEventListener('pointerdown', onPanStart, {passive:false});
@@ -328,8 +338,6 @@
 
     function renderNotes(){
       $world.innerHTML = '';
-
-      // 승인된 메모 및 내 submitted(보드에는 표시 가능) 표시. (상단 타임스탬프 제거)
       for (const n of state.notes) {
         const el = document.createElement('div');
         el.className = 'note';
@@ -337,10 +345,9 @@
         el.style.top  = (n.y || 0) + 'px';
         el.style.width = NOTE.W+'px';
         el.style.height = NOTE.H+'px';
-        const fs = (n.fs ? (n.fs + 'pt') : '14pt');
         el.innerHTML = `
-          <div style="font-weight:700; color:#111; margin-top:6px;">${escapeHtml(toStr(n.nick || '익명'))}</div>
-          <div style="white-space:pre-wrap; line-height:1.25; color:#111; font-size:${fs}; margin-top:6px;">${escapeHtml(toStr(n.text))}</div>
+          <div class="nick">${escapeHtml(toStr(n.nick || '익명'))}</div>
+          <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
         el.addEventListener('dblclick', () => focusNote(n));
         $world.appendChild(el);
@@ -355,39 +362,51 @@
         el.style.top  = (d.y || 0) + 'px';
         el.style.width = NOTE.W+'px';
         el.style.height = NOTE.H+'px';
-        el.innerHTML = makeDraftFormHTML_(d);
+        el.innerHTML = `
+          <div class="dragHandle">드래그 하여 이동</div>
+          <input id="dNick" class="nickInput" maxlength="12" placeholder="닉네임(최대 12자)" value="${escapeAttr(toStr(d.nick||''))}">
+          <textarea id="dText" class="textInput" placeholder="내용을 입력하세요 (제출 후 수정/삭제 불가)" style="font-size:${(d.fs||16)}pt">${escapeText(toStr(d.text||''))}</textarea>
+          <div class="fsDial">
+            <input id="dFs" type="range" min="10" max="48" step="1" value="${d.fs||16}">
+            <div class="fsVal">${d.fs||16}pt</div>
+          </div>
+          <div class="ctrlBar">
+            <button id="dSubmit">제출</button>
+            <button id="dDelete" class="del">삭제</button>
+          </div>
+        `;
 
-        // Drag from dragbar
+        // Drag from the outside handle
         enableDrag(el, (dx, dy) => {
           d.x = (d.x||0) + dx / CAMERA.scale;
           d.y = (d.y||0) + dy / CAMERA.scale;
           saveDraft_(d);
           el.style.left = d.x + 'px';
           el.style.top  = d.y + 'px';
-        }, '.dragbar');
+        }, '.dragHandle');
 
         wireDraftForm_(el, d);
         $world.appendChild(el);
       }
     }
 
-    // 왼쪽 패널: 승인된 메모만, 테이블로 렌더링 (닉네임|내용|이동|캡쳐)
+    // 왼쪽 패널: 승인된 메모만, (닉네임|내용|작업)
     function renderList(){
       const items = state.notes.filter(n => String(n.status).toLowerCase()==='approved')
         .sort((a,b)=> (+new Date(a.ts||a.tsKR)) - (+new Date(b.ts||b.tsKR)));
       $listBody.innerHTML = '';
       for (const n of items) {
         const tr = document.createElement('tr');
-        const text = toStr(n.text);
         tr.innerHTML = `
-          <td>${escapeHtml(toStr(n.nick||'익명'))}</td>
-          <td><span class="ell">${escapeHtml(text)}</span></td>
-          <td><button class="rowbtn">이동</button></td>
-          <td><button class="rowbtn">캡쳐</button></td>
+          <td class="name">${escapeHtml(toStr(n.nick||'익명'))}</td>
+          <td class="text"><span class="ell">${escapeHtml(toStr(n.text))}</span></td>
+          <td class="act">
+            <button class="rowbtn btn-move" style="margin-right:6px;">이동</button>
+            <button class="rowbtn btn-cap">캡쳐</button>
+          </td>
         `;
-        const [btnMove, btnCap] = tr.querySelectorAll('button.rowbtn');
-        btnMove.onclick = () => focusNote(n);
-        btnCap.onclick  = async () => {
+        tr.querySelector('.btn-move').onclick = () => focusNote(n);
+        tr.querySelector('.btn-cap').onclick  = async () => {
           const node = [...$world.children].find(el => {
             const left = parseFloat(el.style.left||0), top = parseFloat(el.style.top||0);
             return Math.abs(left - (n.x||0))<1 && Math.abs(top - (n.y||0))<1;
@@ -401,7 +420,7 @@
     function focusNote(n){
       const center = { x: (n.x||0) + NOTE.W/2, y: (n.y||0) + NOTE.H/2 };
       focusWorldPoint(center);
-      if (!state.panelOpen) togglePanel(); // 리스트 열려있지 않으면 열기(선택)
+      if (!state.panelOpen) togglePanel();
     }
 
     function goToDraft(){ centerOnDraft(1.0); }
@@ -426,27 +445,6 @@
     }
 
     /* ====== Draft ====== */
-    function makeDraftFormHTML_(d){
-      const fs = d.fs || 16;
-      return `
-        <div class="form">
-          <div class="dragbar" title="이 막대를 드래그해서 이동">⋮⋮ 드래그</div>
-          <input id="dNick" class="nickInput" maxlength="12" placeholder="닉네임(최대 12자)" value="${escapeAttr(toStr(d.nick||''))}">
-          <textarea id="dText" class="textInput" placeholder="내용을 입력하세요 (제출 후 수정/삭제 불가)" style="font-size:${fs}pt">${escapeText(toStr(d.text||''))}</textarea>
-          <div class="bottomCol">
-            <div class="fsBox">
-              <input id="dFs" type="range" min="10" max="48" step="1" value="${fs}">
-              <div class="fsVal">${fs}pt</div>
-            </div>
-            <div class="controls" style="display:flex; gap:6px;">
-              <button id="dSubmit" style="flex:1;">제출</button>
-              <button id="dDelete" class="del" style="flex:1;">삭제</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
     function wireDraftForm_(root, d){
       const $nick = root.querySelector('#dNick');
       const $text = root.querySelector('#dText');
@@ -469,7 +467,6 @@
       $fs.oninput = sync;
 
       $submit.onclick = async () => {
-        // 닉네임 미입력 → '익명'
         if (!d.nick) { d.nick = '익명'; $nick.value = '익명'; }
         if (!d.text) { alert('내용을 입력하세요.'); return; }
         if (!confirm('이 내용으로 제출하시겠습니까? 제출 후에는 수정/삭제가 불가합니다.')) return;
@@ -574,10 +571,10 @@
       return { x:minx, y:miny, w:maxx-minx, h:maxy-miny };
     }
 
-    /* ====== Pan / Wheel (with input-safe guards) ====== */
+    /* ====== Pan / Wheel ====== */
     function onPanStart(ev){
-      // 입력/버튼/패널/툴스 위에서는 패닝 비활성화
-      if (ev.target.closest('.note, input, textarea, button, select, .panel, .tools')) return;
+      // 입력/버튼/패널/툴스/핸들/컨트롤/세로슬라이더 위에서는 패닝 비활성화
+      if (ev.target.closest('input, textarea, button, select, .panel, .tools, .dragHandle, .ctrlBar, .fsDial')) return;
 
       state.isPanning = true;
       state.panPrev = {x: ev.clientX, y: ev.clientY};
@@ -598,7 +595,7 @@
         state.lastTapPos = {x: ev.clientX, y: ev.clientY};
       }
 
-      ev.preventDefault();
+      ev.preventDefault(); // 노트 영역에서도 화면 이동 가능
     }
     function onPanMove(ev){
       if (!state.isPanning || !state.panPrev) return;
@@ -613,7 +610,7 @@
     function onPanEnd(){ state.isPanning = false; state.panPrev = null; $board.classList.remove('panning'); }
 
     function onWheelPanZoom(e){
-      if (e.target.closest('.note, input, textarea, button, select, .panel, .tools')) return;
+      if (e.target.closest('input, textarea, button, select, .panel, .tools, .dragHandle, .ctrlBar, .fsDial')) return;
       e.preventDefault();
       if (e.ctrlKey) {
         const factor = Math.exp(-e.deltaY * 0.0015);
@@ -655,7 +652,7 @@
         ...n,
         nick: toStr(n.nick),
         text: toStr(n.text),
-        tsKR: toStr(n.tsKR),  // 서버는 KST로 저장
+        tsKR: toStr(n.tsKR),
         ts: toStr(n.ts),
         status: (n.status||'').toString().toLowerCase(),
         x: Number(n.x) || 0,
