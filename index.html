@@ -19,7 +19,6 @@
       --cam-y: 0px;
       --scale: 1;
       --topbar-h: 56px; /* JS에서 보정 */
-      --side-toolbar-w: 64px; /* 세로 모드에서 우측 툴바 폭 */
     }
     *{ box-sizing:border-box; }
     html,body{
@@ -44,7 +43,7 @@
     .right-actions{ display:flex; gap:8px; justify-self:end; }
     .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; }
 
-    /* 줌 툴바: 기본 상단 가로, 세로모드(세로 > 가로)에서는 우측 세로 고정 */
+    /* 줌 툴바: 가로/세로 상관없이 항상 상단 */
     .toolbar{
       display:flex; align-items:center; gap:12px;
       padding:8px 12px; border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(4px); z-index:60;
@@ -53,22 +52,6 @@
     .toolbar .group{ display:flex; gap:8px; align-items:center; }
     .toolbar input[type="range"]{ width: 180px; }
     @media (max-width: 420px){ .toolbar input[type="range"]{ width:120px; } }
-
-    @media (orientation: portrait) {
-      .app{ grid-template-rows:auto 1fr; } /* 툴바는 고정 배치로 전환 */
-      .toolbar{
-        position: fixed;
-        right: 0; top: var(--topbar-h); bottom: 0;
-        width: var(--side-toolbar-w);
-        flex-direction: column; align-items: center; gap: 10px;
-        padding: 10px 8px; border-left:1px solid #20242b; border-bottom:none;
-      }
-      .toolbar .zoomwrap{ order: 2; flex: 0; }
-      .toolbar .group{ flex-direction: column; }
-      .toolbar input[type="range"]{
-        writing-mode: vertical-lr; direction: rtl; width: 28px; height: 160px;
-      }
-    }
 
     /* 리스트 패널 (고정) */
     .panel{
@@ -99,6 +82,7 @@
       position:absolute; inset:0; background-image: var(--board-image);
       background-position:center; background-size:cover; background-repeat:no-repeat; cursor: grab;
       touch-action: none; /* 제스처 직접 처리 */
+      will-change: transform;
     }
     .board.panning{ cursor: grabbing; }
 
@@ -108,6 +92,7 @@
       transform: translate(var(--cam-x), var(--cam-y)) scale(var(--scale));
       transform-origin: 0 0;
       width:30000px; height:30000px;
+      will-change: transform;
     }
 
     /* Note */
@@ -175,7 +160,7 @@
       </div>
     </div>
 
-    <!-- 줌 툴바 -->
+    <!-- 줌 툴바 (항상 상단) -->
     <div class="toolbar" id="toolbar">
       <div class="zoomwrap">
         <div class="group">
@@ -210,7 +195,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbzWIn854xmJ2Ru0hwquf3fpF6Y_xmLxSXsPPPJY1lDAbzAF52dYvDfICr69RG-c8_eRRw/exec'; // ← 본인 Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbyLapfqkk8pZZJoP1BMoWpYJEcyPe2M8btOIPbKZG1XPQgTG-_eprtW1j499hKd4l90EQ/exec'; // ← 본인 Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
@@ -249,7 +234,7 @@
     const mm = { dragging:false };
 
     // 관성(가속) 이동 상태 + 드래그 스무딩(RAF)
-    const inertia = { raf:0, vx:0, vy:0, damping:0.95 }; // PC 포함: 부드럽게
+    const inertia = { raf:0, vx:0, vy:0, damping:0.985 }; // 더 천천히 감쇠 → 훨씬 부드럽게
     const pan = { raf:0, dx:0, dy:0, lastVX:0, lastVY:0, lastT:0 };
     function stopInertia(){ if (inertia.raf){ cancelAnimationFrame(inertia.raf); inertia.raf=0; } inertia.vx=0; inertia.vy=0; }
 
@@ -403,7 +388,7 @@
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
 
-        // 텍스트가 넘치면 자동 폰트 축소
+        // 텍스트 넘침 시 자동 폰트 축소
         const body = el.querySelector('.body');
         autoFitText(body, n.fs || 14, 10);
 
@@ -513,7 +498,7 @@
       if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) setZoomAtCenter(1.0);
       const center = { x: clamp((n.x||0)+NOTE.W/2, 0, WORLD.W), y: clamp((n.y||0)+NOTE.H/2, 0, WORLD.H) };
       focusWorldPoint(center);
-      bringToFrontById(n.id); // 선택 시 항상 위로 (드래프트 바로 아래), 승인/대기 공통
+      bringToFrontById(n.id); // 승인된/대기 메모 모두 최상단(드래프트 바로 아래)로
     }
     function focusNote(n){
       const center = { x: clamp((n.x||0)+NOTE.W/2, 0, WORLD.W), y: clamp((n.y||0)+NOTE.H/2, 0, WORLD.H) };
@@ -765,12 +750,12 @@
         const dx = ev.clientX - prev.x;
         const dy = ev.clientY - prev.y;
 
-        // 프레임 스무딩
-        pan.dx += dx; pan.dy += dy; 
+        // 프레임 스무딩(모든 이동을 RAF에서 처리)
+        pan.dx += dx; pan.dy += dy;
         schedulePanApply();
 
-        // 최근 속도(EMA)
-        const alpha = 0.35;
+        // 속도 EMA(좀 더 부드럽게)
+        const alpha = 0.2; // ↓ 더 낮게 → 노이즈 감소
         const vx = dx / dt, vy = dy / dt;
         pan.lastVX = alpha * vx + (1-alpha) * pan.lastVX;
         pan.lastVY = alpha * vy + (1-alpha) * pan.lastVY;
@@ -788,7 +773,7 @@
       if (pointers.size === 0){
         $board.classList.remove('panning');
         state.panPrev = null;
-        // PC/모바일 공통 관성 활성화 (부드럽게)
+        // PC/모바일 공통 관성 (더 부드럽게)
         const speed = Math.hypot(pan.lastVX, pan.lastVY);
         if (wasDragging && speed > 0.02) {
           startInertia(pan.lastVX, pan.lastVY);
