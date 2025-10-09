@@ -19,6 +19,7 @@
       --cam-y: 0px;
       --scale: 1;
       --topbar-h: 56px; /* JS에서 보정 */
+      --side-toolbar-w: 0px; /* 세로 모드에서 좌측 툴바 폭 */
     }
     *{ box-sizing:border-box; }
     html,body{
@@ -33,25 +34,45 @@
     .app{ display:grid; grid-template-rows:auto auto 1fr; height:100%; min-height:100vh; min-height:100dvh; }
     .main{ position:relative; height:100%; min-height:0; overflow:hidden; }
 
-    /* Top bar (이제 타이틀만) */
+    /* Top bar: 좌측 아이콘, 우측 타이틀 */
     .topbar{
-      position:relative; display:grid; grid-template-columns: 1fr;
-      align-items:center; padding:10px 12px; border-bottom:1px solid #20242b; background:#0b0e13aa; backdrop-filter: blur(6px);
+      position:relative; display:grid; grid-template-columns:auto 1fr;
+      align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid #20242b; background:#0b0e13aa; backdrop-filter: blur(6px);
     }
     .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; font-size:18px; letter-spacing:.2px; }
+    .iconbtn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
 
-    /* 상단 툴바: 좌(패널), 중앙(줌/전체/캡처), 우(작성/이동/삭제) */
+    /* 상단 툴바: 기본은 상단 가로, 세로모드에선 좌측 세로 고정 */
     .toolbar{
       display:flex; align-items:center; gap:12px;
       padding:8px 12px; border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(4px); z-index:60;
     }
-    .toolbar .left{ }
     .toolbar .zoomwrap{ flex:1; display:flex; justify-content:center; }
     .toolbar .group{ display:flex; gap:8px; align-items:center; }
     .toolbar .btn{ background:#10151d; border:1px solid #293241; color:#dce7f5; padding:8px 10px; border-radius:10px; min-width:40px; }
-    .toolbar .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; } /* 새 메모는 파란색으로 구분 */
+    .toolbar .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; }
     .toolbar input[type="range"]{ width: 180px; }
+
     @media (max-width: 420px){ .toolbar input[type="range"]{ width:120px; } }
+
+    /* ===== 세로 모드(세로 길이 > 가로 길이)일 때 좌측으로 이동 ===== */
+    @media (orientation: portrait) {
+      :root{ --side-toolbar-w: 64px; }
+      .app{ grid-template-rows:auto 1fr; } /* 툴바는 고정 배치로 전환 */
+      .toolbar{
+        position: fixed;
+        left: 0; top: var(--topbar-h); bottom: 0;
+        width: var(--side-toolbar-w);
+        flex-direction: column; align-items: center; gap: 10px;
+        padding: 10px 8px; border-right:1px solid #20242b; border-bottom:none;
+      }
+      .toolbar .zoomwrap{ order: 2; flex: 0; }
+      .toolbar .group{ flex-direction: column; }
+      .toolbar input[type="range"]{
+        writing-mode: vertical-lr; direction: rtl; width: 28px; height: 160px;
+      }
+      .panel{ left: var(--side-toolbar-w); }
+    }
 
     /* 리스트 패널 (고정) */
     .panel{
@@ -142,16 +163,13 @@
 <body>
   <div class="app">
     <div class="topbar" id="topbar">
+      <!-- 타이틀 좌측으로 리스트 패널 아이콘 이동 -->
+      <button id="btnPanel" class="iconbtn" title="리스트" aria-label="리스트">🗂️</button>
       <div class="title" id="title">온라인 포스트잇 게시판</div>
     </div>
 
-    <!-- 상단 툴바: 좌(리스트), 중앙(줌/전체/캡처), 우(작성/이동/삭제) -->
+    <!-- 툴바: 기본 상단, 세로모드에선 좌측 고정 -->
     <div class="toolbar" id="toolbar">
-      <!-- 좌측: 리스트 패널 버튼 (아이콘) -->
-      <div class="group left">
-        <button id="btnPanel" class="btn" title="리스트 패널 열기/닫기" aria-label="리스트 패널">🗂️</button>
-      </div>
-
       <!-- 중앙: [-][슬라이더][+][⤢][📷] -->
       <div class="zoomwrap">
         <div class="group">
@@ -175,7 +193,6 @@
       <div class="board" id="board">
         <div class="world" id="world"></div>
       </div>
-
       <!-- 미니맵 -->
       <div class="minimap" id="miniWrap"><canvas id="minimap"></canvas></div>
     </div>
@@ -194,7 +211,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbyFwub5v9V0FqeHZtqIw2fI-0_RqpxAZvalAm9ppwv1c5HKfb4-jj3gp0puZYTA8Hnh2w/exec'; // ← 본인 Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbyEszh-RNM09GpC0O_KQQIOd1aS8zUuNPBf5-sYhxmfSLLkDwGtZeN2HwFtQpuAgF2hQg/exec'; // ← 본인 Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
@@ -207,10 +224,9 @@
       draft: loadDraft_(),
       panelOpen: false,
       panelDock: 'left',
-      isPanning: false,
       panPrev: null,
-      topZ: 10,
-      zMap: {},
+      zMap: {},                 // id -> z
+      zCounters: { submitted:0, approved:0 },
       lastTapTime: 0, lastTapPos: {x:0,y:0}
     };
 
@@ -234,7 +250,7 @@
     const mm = { dragging:false };
 
     // 관성(가속) 이동 상태 + 드래그 스무딩(RAF)
-    const inertia = { raf:0, vx:0, vy:0 };
+    const inertia = { raf:0, vx:0, vy:0, damping:0.95 }; // PC 포함: 부드럽게
     const pan = { raf:0, dx:0, dy:0, lastVX:0, lastVY:0, lastT:0 };
     function stopInertia(){ if (inertia.raf){ cancelAnimationFrame(inertia.raf); inertia.raf=0; } inertia.vx=0; inertia.vy=0; }
 
@@ -371,10 +387,6 @@
     function renderNotes(){
       $world.innerHTML = '';
 
-      let maxZ = state.topZ;
-      for (const n of state.notes) { if (state.zMap[n.id]) maxZ = Math.max(maxZ, state.zMap[n.id]); }
-      state.topZ = Math.max(maxZ, 10);
-
       for (const n of state.notes) {
         const el = document.createElement('div');
         el.className = 'note';
@@ -391,6 +403,10 @@
           <div class="nick">${escapeHtml(toStr(n.nick || '익명'))}${n.status==='submitted'?' <small style="color:#555">· 승인대기</small>':''}</div>
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
+
+        // 텍스트가 넘치면 자동 폰트 축소
+        const body = el.querySelector('.body');
+        autoFitText(body, n.fs || 14, 10);
 
         el.addEventListener('click', () => bringToFrontEl(el));
         el.addEventListener('dblclick', () => focusNote(n));
@@ -470,14 +486,19 @@
 
     function safeEscapeCss(s){ if (window.CSS && CSS.escape) return CSS.escape(String(s)); return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&'); }
     function findNoteElById(id){ return $world.querySelector(`.note[data-id="${safeEscapeCss(id||'')}"]`); }
+    function getNoteById(id){ return state.notes.find(n => (n.id||'') === (id||'')); }
 
+    /* ====== 선택 시 계층: draft(9999) > submitted(9000+) > approved(8000+) ====== */
     function bringToFrontEl(el){
-      // 드래프트(9999 !important)보다 아래로만 올리기
-      const MAX_Z = 9998;
-      state.topZ = Math.min(MAX_Z, state.topZ + 1);
       const id = el.dataset.id || '';
-      state.zMap[id] = state.topZ;
-      el.style.zIndex = state.topZ;
+      const note = getNoteById(id);
+      const status = (note && note.status) || 'approved';
+      const tier = (status === 'submitted') ? 'submitted' : 'approved';
+      const base = (tier === 'submitted') ? 9000 : 8000;
+      state.zCounters[tier] = (state.zCounters[tier] || 0) + 1;
+      const z = Math.min(9998, base + state.zCounters[tier]); // 드래프트(9999) 바로 아래까지만
+      state.zMap[id] = z;
+      el.style.zIndex = z;
     }
     function bringToFrontById(id){ const el = findNoteElById(id); if (el) bringToFrontEl(el); }
 
@@ -485,7 +506,7 @@
       if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) setZoomAtCenter(1.0);
       const center = { x: clamp((n.x||0)+NOTE.W/2, 0, WORLD.W), y: clamp((n.y||0)+NOTE.H/2, 0, WORLD.H) };
       focusWorldPoint(center);
-      bringToFrontById(n.id); // 선택 시 항상 맨 위(드래프트 바로 아래)
+      bringToFrontById(n.id); // 선택 시 항상 위로 (드래프트 바로 아래), 승인/대기 공통
     }
     function focusNote(n){
       const center = { x: clamp((n.x||0)+NOTE.W/2, 0, WORLD.W), y: clamp((n.y||0)+NOTE.H/2, 0, WORLD.H) };
@@ -493,7 +514,6 @@
       bringToFrontById(n.id);
       if (!state.panelOpen) togglePanel();
     }
-    function goToDraft(){ centerOnDraft(1.0); }
 
     function fitAll(){
       const rects = [];
@@ -510,7 +530,7 @@
       const s = clamp(Math.min(s1, s2), CAMERA.min, CAMERA.max);
       setZoomAtCenter(s);
 
-      const center = { x: bb.x + bb.w/2, y: bb.y + bb.h/2 };
+      const center = { x: bb.x + bb.w/2, y: bb.y/2 + bb.h/2 };
       focusWorldPoint(center, false);
     }
 
@@ -561,17 +581,14 @@
             $submit.disabled=false; $del.disabled=false; $submit.textContent='✓';
             return;
           }
-          // 성공 시: 알림창 없이 화면에 그대로 "승인대기" 상태로 전환
           const newNote = {
             id: j.id, owner: state.owner, nick: d.nick, text: d.text,
             status: 'submitted', ts: j.ts, tsKR: j.tsKR,
             x, y, fs: d.fs||16
           };
           state.notes.push(sanitizeNote(newNote));
-          // 드래프트 제거 & 재렌더
           state.draft = null; localStorage.removeItem('mn_draft');
           renderAll();
-          // 최신 서버 상태 동기화(백그라운드)
           refreshList();
         }catch(err){
           alert('네트워크 오류로 제출에 실패했습니다.');
@@ -656,11 +673,12 @@
       inertia.vx = vx; inertia.vy = vy;
       let last = performance.now();
       const tick = (now)=>{
-        const dt = now - last; last = now;
+        const dt = Math.min(48, now - last); // 프레임 점프 완화
+        last = now;
         CAMERA.x += inertia.vx * dt;
         CAMERA.y += inertia.vy * dt;
         setCamVars_();
-        const damping = Math.pow(0.94, dt / 16);
+        const damping = Math.pow(inertia.damping, dt / 16);
         inertia.vx *= damping; inertia.vy *= damping;
         if (Math.hypot(inertia.vx, inertia.vy) < 0.02) { stopInertia(); return; }
         inertia.raf = requestAnimationFrame(tick);
@@ -739,7 +757,8 @@
         const dx = ev.clientX - prev.x;
         const dy = ev.clientY - prev.y;
 
-        pan.dx += dx; pan.dy += dy; // 프레임 스무딩
+        // 프레임 스무딩
+        pan.dx += dx; pan.dy += dy; 
         schedulePanApply();
 
         // 최근 속도(EMA)
@@ -761,9 +780,9 @@
       if (pointers.size === 0){
         $board.classList.remove('panning');
         state.panPrev = null;
-        // ★ PC(마우스)에서는 관성 비활성화
+        // PC/모바일 공통 관성 활성화 (부드럽게)
         const speed = Math.hypot(pan.lastVX, pan.lastVY);
-        if (wasDragging && speed > 0.02 && ev.pointerType !== 'mouse') {
+        if (wasDragging && speed > 0.02) {
           startInertia(pan.lastVX, pan.lastVY);
         }
         pan.lastVX = pan.lastVY = 0;
@@ -854,6 +873,19 @@
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
     function escapeAttr(s){ return String(s).replace(/"/g, '&quot;'); }
     function escapeText(s){ return String(s).replace(/</g, '&lt;'); }
+
+    function autoFitText(el, preferredPt, minPt){
+      let pt = Math.max(minPt||10, preferredPt||14);
+      el.style.fontSize = pt + 'pt';
+      const maxLoops = 30;
+      let loops = 0;
+      while (loops < maxLoops && el.scrollHeight > el.clientHeight && pt > (minPt||10)) {
+        const ratio = el.clientHeight / Math.max(1, el.scrollHeight);
+        pt = Math.max(minPt||10, Math.floor(Math.min(pt - 1, pt * (ratio * 0.98))));
+        el.style.fontSize = pt + 'pt';
+        loops++;
+      }
+    }
 
     function sanitizeNote(n){
       return {
