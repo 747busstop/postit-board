@@ -176,7 +176,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbxh-jytrnWkfn8uf83JO2qFYCcMirL62UZFRFim4_FkxbyqK2gwZR7osNuFc3Uf9sOhwg/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbzoZji-geLcoVtmgzLO0ijcLj8lJ-pyXp0jqTW4DSEyxQxuDj65wt0RLcCubZ5ct49MIw/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 }; // 경계 0~10000
@@ -363,7 +363,7 @@
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
 
-        // 내용이 많으면 8pt까지 자동 축소
+        // 내용이 많으면 자동 축소(최소 8pt) → 포스트잇 크기 고정
         const body = el.querySelector('.body');
         autoFitText(body, n.fs || 14, 8);
 
@@ -454,7 +454,7 @@
     function findNoteElById(id){ return $world.querySelector(`.note[data-id="${safeEscapeCss(id||'')}"]`); }
     function getNoteById(id){ return state.notes.find(n => (n.id||'') === (id||'')); }
 
-    /* ====== 계층: draft(9999) > submitted(9000+) > approved(8000+) ====== */
+    /* ====== 선택시 계층: draft(최상단=9999) > submitted(9000+) > approved(8000+) ====== */
     function bringToFrontEl(el){
       const id = el.dataset.id || '';
       const note = getNoteById(id);
@@ -462,7 +462,7 @@
       const tier = (status === 'submitted') ? 'submitted' : 'approved';
       const base = (tier === 'submitted') ? 9000 : 8000;
       state.zCounters[tier] = (state.zCounters[tier] || 0) + 1;
-      const z = Math.min(9998, base + state.zCounters[tier]);
+      const z = Math.min(9998, base + state.zCounters[tier]); // 드래프트(9999) 바로 아래까지만
       state.zMap[id] = z;
       el.style.zIndex = z;
     }
@@ -472,7 +472,7 @@
       if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) setZoomAtCenter(1.0);
       const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
       focusWorldPoint(center);
-      bringToFrontById(n.id);
+      bringToFrontById(n.id); // 승인/대기 모두 드래프트 바로 아래까지 최상단
     }
     function focusNote(n){
       const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
@@ -646,35 +646,9 @@
     const pointers = new Map();
     const pinch = { active:false, lastDist:0, lastMid:{x:0,y:0} };
 
-    function startInertia(vx, vy){
-      stopInertia();
-      inertia.vx = vx; inertia.vy = vy;
-      let last = performance.now();
-      const tick = (now)=>{
-        const dt = Math.min(48, now - last);
-        last = now;
-        CAMERA.x += inertia.vx * dt;
-        CAMERA.y += inertia.vy * dt;
-        setCamVars_();
-        const damping = Math.pow(inertia.damping, dt / 16);
-        inertia.vx *= damping; inertia.vy *= damping;
-        if (Math.hypot(inertia.vx, inertia.vy) < 0.02) { stopInertia(); return; }
-        inertia.raf = requestAnimationFrame(tick);
-      };
-      inertia.raf = requestAnimationFrame(tick);
-    }
-
-    function schedulePanApply(){
-      if (pan.raf) return;
-      pan.raf = requestAnimationFrame(()=>{
-        CAMERA.x += pan.dx; CAMERA.y += pan.dy;
-        pan.dx = pan.dy = 0;
-        setCamVars_();
-        pan.raf = 0;
-      });
-    }
-
+    // ★ PC(마우스)에서는 보드 드래그 이동 비활성화
     function onPointerDown(ev){
+      // 더블탭(모바일) 새 메모
       if (ev.pointerType === 'touch' && !ev.target.closest('input,textarea,button,select,.panel,.dragHandle,.ctrlBar,.fsDial')){
         const now = performance.now();
         const isNear = Math.hypot(ev.clientX - state.lastTapPos.x, ev.clientY - state.lastTapPos.y) < 30;
@@ -693,6 +667,9 @@
       }
 
       if (ev.target.closest('input, textarea, button, select, .panel, .dragHandle, .ctrlBar, .fsDial')) return;
+
+      // 마우스 드래그로는 보드 이동 금지 (PC 요구사항)
+      if (ev.pointerType === 'mouse') return;
 
       stopInertia();
       $board.setPointerCapture(ev.pointerId);
@@ -724,7 +701,7 @@
           setZoomAtPoint(CAMERA.scale * factor, mid.x, mid.y);
         }
         pinch.lastDist = dist; pinch.lastMid  = mid;
-        ev.preventDefault(); return;
+        return;
       }
 
       if (pointers.size === 1){
@@ -735,7 +712,14 @@
         const dy = ev.clientY - prev.y;
 
         pan.dx += dx; pan.dy += dy;
-        schedulePanApply();
+        if (!pan.raf){
+          pan.raf = requestAnimationFrame(()=>{
+            CAMERA.x += pan.dx; CAMERA.y += pan.dy;
+            pan.dx = pan.dy = 0;
+            setCamVars_();
+            pan.raf = 0;
+          });
+        }
 
         const alpha = 0.2;
         const vx = dx / dt, vy = dy / dt;
@@ -744,7 +728,6 @@
 
         state.panPrev = {x: ev.clientX, y: ev.clientY};
         pan.lastT = now;
-        ev.preventDefault();
       }
     }
 
@@ -761,6 +744,24 @@
         }
         pan.lastVX = pan.lastVY = 0;
       }
+    }
+
+    function startInertia(vx, vy){
+      stopInertia();
+      inertia.vx = vx; inertia.vy = vy;
+      let last = performance.now();
+      const tick = (now)=>{
+        const dt = Math.min(48, now - last);
+        last = now;
+        CAMERA.x += inertia.vx * dt;
+        CAMERA.y += inertia.vy * dt;
+        setCamVars_();
+        const damping = Math.pow(inertia.damping, dt / 16);
+        inertia.vx *= damping; inertia.vy *= damping;
+        if (Math.hypot(inertia.vx, inertia.vy) < 0.02) { stopInertia(); return; }
+        inertia.raf = requestAnimationFrame(tick);
+      };
+      inertia.raf = requestAnimationFrame(tick);
     }
 
     function onWheelPanZoom(e){
