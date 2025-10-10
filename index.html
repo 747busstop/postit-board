@@ -43,7 +43,7 @@
     .right-actions{ display:flex; gap:8px; justify-self:end; }
     .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; }
 
-    /* 줌 툴바: 가로/세로 상관없이 항상 상단 */
+    /* 줌 툴바: 항상 상단(가로/세로 공통) */
     .toolbar{
       display:flex; align-items:center; gap:12px;
       padding:8px 12px; border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(4px); z-index:60;
@@ -86,7 +86,7 @@
     }
     .board.panning{ cursor: grabbing; }
 
-    /* WORLD */
+    /* WORLD (큰 월드 위에 0~2000 경계를 강제 적용) */
     .world{
       position:absolute; left:0; top:0;
       transform: translate(var(--cam-x), var(--cam-y)) scale(var(--scale));
@@ -134,7 +134,7 @@
     .fsDial input[type="range"]{ writing-mode: vertical-lr; direction: rtl; appearance: none; width: 28px; height: 140px; background:transparent; }
     .fsVal{ color:#111; font-size:12px; text-align:center; margin-top:4px; }
 
-    /* 미니맵 */
+    /* 미니맵 (0~2000 영역 기준) */
     .minimap{
       position:absolute; left:12px; bottom:12px; width:160px; height:160px; background:#0b0e13cc; border:1px solid #293241; border-radius:12px; overflow:hidden; z-index:45;
       box-shadow:0 6px 16px rgba(0,0,0,.25);
@@ -195,9 +195,10 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbyLapfqkk8pZZJoP1BMoWpYJEcyPe2M8btOIPbKZG1XPQgTG-_eprtW1j499hKd4l90EQ/exec'; // ← 본인 Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbxSPeYkFukWVxXyTf-FZZYbW4EOG0B3KH2MireHYaEXpNYYIvOzA3BHGzzqyi6caRAVug/exec'; // ← 본인 Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
+    const BOUNDS = { W: 2000, H: 2000 }; // 포스트잇 허용 경계
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
 
     /* ====== State ====== */
@@ -244,7 +245,8 @@
       await bootstrap();
       bindUI();
       renderAll();
-      fitAll();
+      // 초기 시점: 미니맵 중앙(1000,1000)에 카메라 맞추기
+      focusWorldPoint({ x: 1000, y: 1000 });
       updateTopbarActions();
       window.addEventListener('resize', onResize);
     })();
@@ -375,8 +377,10 @@
         const el = document.createElement('div');
         el.className = 'note';
         el.dataset.id = n.id || '';
-        const nx = clamp(n.x || 0, 0, Math.max(0, WORLD.W - NOTE.W));
-        const ny = clamp(n.y || 0, 0, Math.max(0, WORLD.H - NOTE.H));
+        const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+        const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+        const nx = clamp(n.x || 0, 0, maxX);
+        const ny = clamp(n.y || 0, 0, maxY);
         el.style.left = nx + 'px';
         el.style.top  = ny + 'px';
         el.style.width = NOTE.W+'px';
@@ -388,9 +392,9 @@
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
 
-        // 텍스트 넘침 시 자동 폰트 축소
+        // 텍스트 많은 경우 포스트잇 내부에 자동 축소(최소 8pt)
         const body = el.querySelector('.body');
-        autoFitText(body, n.fs || 14, 10);
+        autoFitText(body, n.fs || 14, 8);
 
         el.addEventListener('click', () => bringToFrontEl(el));
         el.addEventListener('dblclick', () => focusNote(n));
@@ -410,15 +414,14 @@
         el.style.height = NOTE.H+'px';
         el.innerHTML = `
           <div class="dragHandle" title="드래그하여 이동" aria-label="드래그하여 이동">
-            <!-- 4방향 십자 화살표 아이콘 (SVG) -->
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 2l3 3h-2v4h-2V5H9l3-3zM12 22l-3-3h2v-4h2v4h2l-3 3zM2 12l3-3v2h4v2H5v2l-3-3zM22 12l-3 3v-2h-4v-2h4V9l3 3z" fill="#111"/>
             </svg>
           </div>
-          <input id="dNick" class="nickInput" maxlength="12" placeholder="닉네임(최대 12자)" value="${escapeAttr(toStr(d.nick||''))}">
+          <input id="dNick" class="nickInput" maxlength="27" placeholder="닉네임(최대 27자)" value="${escapeAttr(toStr(d.nick||''))}">
           <textarea id="dText" class="textInput" placeholder="내용을 입력하세요 (제출 후 수정/삭제 불가)" style="font-size:${(d.fs||16)}pt">${escapeText(toStr(d.text||''))}</textarea>
           <div class="fsDial">
-            <input id="dFs" type="range" min="10" max="48" step="1" value="${d.fs||16}">
+            <input id="dFs" type="range" min="8" max="36" step="1" value="${d.fs||16}">
             <div class="fsVal">${d.fs||16}pt</div>
           </div>
           <div class="ctrlBar">
@@ -496,12 +499,12 @@
 
     function moveToNote(n){
       if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) setZoomAtCenter(1.0);
-      const center = { x: clamp((n.x||0)+NOTE.W/2, 0, WORLD.W), y: clamp((n.y||0)+NOTE.H/2, 0, WORLD.H) };
+      const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
       focusWorldPoint(center);
       bringToFrontById(n.id); // 승인된/대기 메모 모두 최상단(드래프트 바로 아래)로
     }
     function focusNote(n){
-      const center = { x: clamp((n.x||0)+NOTE.W/2, 0, WORLD.W), y: clamp((n.y||0)+NOTE.H/2, 0, WORLD.H) };
+      const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
       focusWorldPoint(center);
       bringToFrontById(n.id);
       if (!state.panelOpen) togglePanel();
@@ -509,8 +512,10 @@
 
     function fitAll(){
       const rects = [];
-      for (const n of state.notes) rects.push({x:clamp(n.x||0,0,Math.max(0,WORLD.W-NOTE.W)), y:clamp(n.y||0,0,Math.max(0,WORLD.H-NOTE.H)), w:NOTE.W,h:NOTE.H});
-      if (state.draft) rects.push({x:clamp(state.draft.x||0,0,Math.max(0,WORLD.W-NOTE.W)), y:clamp(state.draft.y||0,0,Math.max(0,WORLD.H-NOTE.H)), w:NOTE.W,h:NOTE.H});
+      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+      for (const n of state.notes) rects.push({x:clamp(n.x||0,0,maxX), y:clamp(n.y||0,0,maxY), w:NOTE.W,h:NOTE.H});
+      if (state.draft) rects.push({x:clamp(state.draft.x||0,0,maxX), y:clamp(state.draft.y||0,0,maxY), w:NOTE.W,h:NOTE.H});
       if (!rects.length) { setZoomAtCenter(CAMERA.scale); return; }
 
       const bb = boundsOf(rects);
@@ -536,9 +541,9 @@
       const $fsVal  = root.querySelector('.fsVal');
 
       const sync = () => {
-        d.nick = $nick.value.trim();
+        d.nick = ($nick.value || '').slice(0,27).trim();
         d.text = $text.value;
-        d.fs = parseInt($fs.value,10)||16;
+        d.fs = clamp(parseInt($fs.value,10)||16, 8, 36);
         $fsVal.textContent = d.fs+'pt';
         $text.style.fontSize = d.fs+'pt';
         saveDraft_(d);
@@ -554,8 +559,10 @@
 
         $submit.disabled = true; $del.disabled = true; $submit.textContent = '✓';
 
-        const x = Math.round(clamp(d.x||0, 0, Math.max(0, WORLD.W - NOTE.W)));
-        const y = Math.round(clamp(d.y||0, 0, Math.max(0, WORLD.H - NOTE.H)));
+        const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+        const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+        const x = Math.round(clamp(d.x||0, 0, maxX));
+        const y = Math.round(clamp(d.y||0, 0, maxY));
 
         const fd = new URLSearchParams();
         fd.set('action','create');
@@ -594,7 +601,14 @@
 
     function createDraftAt(pos, zoomToCenter=false){
       if (state.draft) { centerOnDraft(1.0); return; }
-      const d = { nick:'', text:'', x: clamp(Math.round(pos.x||0), 0, Math.max(0, WORLD.W - NOTE.W)), y: clamp(Math.round(pos.y||0), 0, Math.max(0, WORLD.H - NOTE.H)), fs: 16 };
+      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+      const d = {
+        nick:'', text:'',
+        x: clamp(Math.round(pos.x||0), 0, maxX),
+        y: clamp(Math.round(pos.y||0), 0, maxY),
+        fs: 16
+      };
       state.draft = d;
       saveDraft_(state.draft);
       renderAll();
@@ -755,7 +769,7 @@
         schedulePanApply();
 
         // 속도 EMA(좀 더 부드럽게)
-        const alpha = 0.2; // ↓ 더 낮게 → 노이즈 감소
+        const alpha = 0.2; // 낮을수록 노이즈 감소
         const vx = dx / dt, vy = dy / dt;
         pan.lastVX = alpha * vx + (1-alpha) * pan.lastVX;
         pan.lastVY = alpha * vy + (1-alpha) * pan.lastVY;
@@ -798,7 +812,7 @@
       }
     }
 
-    /* ====== Minimap ====== */
+    /* ====== Minimap (0~2000 기준) ====== */
     function updateMinimap(){
       const ctx = $minimap.getContext('2d');
       const dpr = window.devicePixelRatio || 1;
@@ -812,28 +826,32 @@
       ctx.fillStyle = '#0b0e13'; ctx.fillRect(0,0, cssW, cssH);
       ctx.strokeStyle = '#293241'; ctx.strokeRect(0.5,0.5, cssW-1, cssH-1);
 
-      const sx = cssW / WORLD.W, sy = cssH / WORLD.H, s = Math.min(sx, sy);
+      const sx = cssW / BOUNDS.W, sy = cssH / BOUNDS.H, s = Math.min(sx, sy);
 
       // 노트 점
       ctx.fillStyle = '#9ab6ff';
       const dot = Math.max(2, Math.round(NOTE.W * s * 0.5));
+      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
       for (const n of state.notes){
-        const nx = clamp(n.x||0, 0, WORLD.W - NOTE.W);
-        const ny = clamp(n.y||0, 0, WORLD.H - NOTE.H);
+        const nx = clamp(n.x||0, 0, maxX);
+        const ny = clamp(n.y||0, 0, maxY);
         ctx.fillRect(Math.round(nx*s), Math.round(ny*s), dot, dot);
       }
       // 드래프트
       if (state.draft){
-        const dx = clamp(state.draft.x||0, 0, WORLD.W - NOTE.W);
-        const dy = clamp(state.draft.y||0, 0, WORLD.H - NOTE.H);
+        const dx = clamp(state.draft.x||0, 0, maxX);
+        const dy = clamp(state.draft.y||0, 0, maxY);
         ctx.fillStyle = '#ffb86b';
         ctx.fillRect(Math.round(dx*s), Math.round(dy*s), dot, dot);
       }
 
-      // 뷰포트
+      // 뷰포트 (경계 내로)
       const r = $board.getBoundingClientRect();
-      const wx = -CAMERA.x / CAMERA.scale, wy = -CAMERA.y / CAMERA.scale;
-      const ww = r.width / CAMERA.scale, wh = r.height / CAMERA.scale;
+      const wx = clamp(-CAMERA.x / CAMERA.scale, 0, BOUNDS.W);
+      const wy = clamp(-CAMERA.y / CAMERA.scale, 0, BOUNDS.H);
+      const ww = Math.min(r.width / CAMERA.scale, BOUNDS.W);
+      const wh = Math.min(r.height / CAMERA.scale, BOUNDS.H);
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
       ctx.strokeRect(Math.round(wx*s)+0.5, Math.round(wy*s)+0.5, Math.max(10, ww*s), Math.max(10, wh*s));
     }
@@ -842,7 +860,7 @@
       const rect = $miniWrap.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
       const cssW = rect.width, cssH = rect.height;
-      const sx = cssW / WORLD.W, sy = cssH / WORLD.H, s = Math.min(sx, sy);
+      const sx = cssW / BOUNDS.W, sy = cssH / BOUNDS.H, s = Math.min(sx, sy);
       const wx = x / s, wy = y / s;
       focusWorldPoint({ x: wx, y: wy });
     }
@@ -868,19 +886,21 @@
     function escapeText(s){ return String(s).replace(/</g, '&lt;'); }
 
     function autoFitText(el, preferredPt, minPt){
-      let pt = Math.max(minPt||10, preferredPt||14);
+      let pt = Math.max(minPt||8, preferredPt||14);
       el.style.fontSize = pt + 'pt';
       const maxLoops = 30;
       let loops = 0;
-      while (loops < maxLoops && el.scrollHeight > el.clientHeight && pt > (minPt||10)) {
+      while (loops < maxLoops && el.scrollHeight > el.clientHeight && pt > (minPt||8)) {
         const ratio = el.clientHeight / Math.max(1, el.scrollHeight);
-        pt = Math.max(minPt||10, Math.floor(Math.min(pt - 1, pt * (ratio * 0.98))));
+        pt = Math.max(minPt||8, Math.floor(Math.min(pt - 1, pt * (ratio * 0.98))));
         el.style.fontSize = pt + 'pt';
         loops++;
       }
     }
 
     function sanitizeNote(n){
+      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
       return {
         ...n,
         nick: toStr(n.nick),
@@ -888,15 +908,17 @@
         tsKR: toStr(n.tsKR),
         ts: toStr(n.ts),
         status: (n.status||'').toString().toLowerCase(),
-        x: clamp(Number(n.x)||0, 0, Math.max(0, WORLD.W - NOTE.W)),
-        y: clamp(Number(n.y)||0, 0, Math.max(0, WORLD.H - NOTE.H)),
-        fs: Number(n.fs) || 16
+        x: clamp(Number(n.x)||0, 0, maxX),
+        y: clamp(Number(n.y)||0, 0, maxY),
+        fs: clamp(Number(n.fs) || 16, 8, 36)
       };
     }
 
     function clampDraftToWorld_(d){
-      d.x = clamp(Number(d.x)||0, 0, Math.max(0, WORLD.W - NOTE.W));
-      d.y = clamp(Number(d.y)||0, 0, Math.max(0, WORLD.H - NOTE.H));
+      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+      d.x = clamp(Number(d.x)||0, 0, maxX);
+      d.y = clamp(Number(d.y)||0, 0, maxY);
     }
 
     function enableDrag(el, ondrag, handleSelector){
