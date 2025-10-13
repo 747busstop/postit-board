@@ -1,3 +1,482 @@
+/***** Memorial Notes WebApp (Sheets + Apps Script API) *****
+ * - Main sheet:  MemorialNotes
+ * - Partitions:  submitted / approved / rejected
+ * - Settings :   settings (key/value)
+ * - Endpoints:
+ *    GET  ?action=bootstrap&owner=...  -> {settings, data}
+ *    GET  ?action=list&owner=...       -> {data}
+ *    GET  ?action=settings             -> {settings}
+ *    POST action=create (form-encoded: owner,nick,text,x,y,fs)
+ ************************************************************/
+
+const SHEET_NAME = 'MemorialNotes';
+const HEADERS = ['id','owner','nick','text','status','tsKR','ts','x','y','fs'];
+const STATUS = { SUBMITTED:'submitted', APPROVED:'approved', REJECTED:'rejected' };
+const PARTITION_SHEET_NAMES = { submitted:'submitted', approved:'approved', rejected:'rejected' };
+const SETTINGS_SHEET = 'settings';
+const KST_TZ = 'Asia/Seoul';
+
+const APP_VERSION = '2025-10-10-08';  // 버전 갱신
+const SETTINGS_CACHE_TTL = 300;       // 5m
+const ASSET_CACHE_TTL = 21600;        // 6h
+
+// 클라이언트의 큰 월드
+const WORLD = { W: 30000, H: 30000 };
+// 포스트잇 허용 경계(0~10000, 0~10000 내에서만 배치/저장)
+const BOUNDS = { W: 10000, H: 10000 };
+
+const DEFAULT_SETTINGS = {
+  pageTitle: '온라인 포스트잇 게시판',
+  screenTitle: '온라인 포스트잇 게시판',
+  bgColor: '#0f1115',
+  bgImageName: '',
+  postitImageName: '',
+  titleAlign: 'center',            // left | center
+  panelDock: 'left',               // left | right
+  panelWidthPx: '320',
+  noteSizePx: '280',               // 정사각형 기준
+  zoomMin: '0.2',
+  zoomMax: '2.0',
+  zoomDefault: '1.0',
+  notifyOn: 'No',                  // Yes | No
+  notifyEmail: ''
+};
+
+/* ------------------------ Web entrypoints ------------------------ */
+function doOptions(e) {
+  return cors_(ContentService.createTextOutput(''));
+}
+
+function doGet(e) {
+  ensureSetup_();
+
+  const action = (e.parameter && e.parameter.action) || 'help';
+  if (action === 'bootstrap') {
+    const owner = (e.parameter && e.parameter.owner) || '';
+    return json_({
+      ok: true,
+      version: APP_VERSION,
+      settings: getSettingsWithAssets_(),
+      data: listNotes_(owner)
+    });
+  }
+  if (action === 'list') {
+    const owner = (e.parameter && e.parameter.owner) || '';
+    return json_({ ok:true, data: listNotes_(owner) });
+  }
+  if (action === 'settings') {
+    return json_({ ok:true, settings: getSettingsWithAssets_() });
+  }
+  if (action === 'syncPartitions') {
+    rebuildPartitionSheets_();
+    return json_({ ok:true });
+  }
+
+  return json_({ ok:false, error:'unknown action', actions:['bootstrap','list','settings','syncPartitions'] });
+}
+
+function doPost(e) {
+  ensureSetup_();
+
+  const action = e.parameter && e.parameter.action;
+  if (action === 'create') {
+    const owner = (e.parameter.owner || '').trim();
+    const nickRaw = (e.parameter.nick || '').trim().slice(0, 27); // 닉네임 27자 제한
+    const nick = nickRaw || '익명';
+    const text  = (e.parameter.text  || '').trim().slice(0, 1000);
+
+    // 좌표/글자크기 수신
+    let x = Math.max(0, parseFloat(e.parameter.x || '0') || 0);
+    let y = Math.max(0, parseFloat(e.parameter.y || '0') || 0);
+    const fs = Math.min(36, Math.max(8, parseInt(e.parameter.fs || '16', 10))); // 8~36pt
+
+    if (!owner || !text) {
+      return json_({ ok:false, error:'owner, text are required' });
+    }
+
+    // 서버측 경계 강제 (0~10000 내, 포스트잇이 경계 밖으로 나가지 않도록)
+    const s = getSettings_();
+    const noteSize = Math.max(1, parseInt(s.noteSizePx || '280', 10));
+    const limitW = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - noteSize);
+    const limitH = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - noteSize);
+    x = clampNumber_(x, 0, limitW);
+    y = clampNumber_(y, 0, limitH);
+
+    const id = Utilities.getUuid();
+    const ts = new Date();
+    const tsKR = Utilities.formatDate(ts, KST_TZ, 'yyyy-MM-dd HH:mm:ss');
+
+    const sh = getSheet_();
+    const row = [id, owner, nick, text, STATUS.SUBMITTED, tsKR, ts, x, y, fs];
+    sh.appendRow(row);
+
+    mirrorAppendToPartition_(STATUS.SUBMITTED, row);
+
+    try { sendNotifyEmail_(nick, text, tsKR); } catch (err) {}
+
+    return json_({ ok:true, id, status: STATUS.SUBMITTED, ts, tsKR });
+  }
+
+  return json_({ ok:false, error:'unknown action' });
+}
+
+/* ------------------------ Spreadsheet UI ------------------------ */
+function onOpen() {
+  ensureSetup_();
+  SpreadsheetApp.getUi()
+    .createMenu('MemorialNotes')
+    .addItem('상태 시트 동기화', 'rebuildPartitionSheets_')
+    .addItem('레거시 드래프트 정리', 'fixLegacyDrafts_')
+    .addItem('버전/상태 보기', 'showVersionDialog_')
+    .addToUi();
+}
+
+/* 상태 변경: 메인/파티션 어디서 바꿔도 반영 */
+function onEdit(e) {
+  try {
+    if (!e || !e.range) return;
+    const sh = e.range.getSheet();
+    const name = sh.getName();
+    const col = e.range.getColumn();
+    const row = e.range.getRow();
+    if (row <= 1) return;
+
+    const statusCol = HEADERS.indexOf('status') + 1;
+    if (col !== statusCol) return;
+
+    const newVal = (e.value || '').toLowerCase();
+    if (![STATUS.SUBMITTED, STATUS.APPROVED, STATUS.REJECTED].includes(newVal)) return;
+
+    if (name === SHEET_NAME) {
+      if (newVal === STATUS.APPROVED) deOverlapApproved_(row);
+      rebuildPartitionSheets_();
+      return;
+    }
+
+    if (Object.values(PARTITION_SHEET_NAMES).includes(name)) {
+      const id = String(sh.getRange(row, HEADERS.indexOf('id') + 1).getValue() || '');
+      if (!id) return;
+      const main = getSheet_();
+      const ids = main.getRange(2, 1, Math.max(0, main.getLastRow()-1), 1).getValues().map(v=>String(v[0]||''));
+      const idx = ids.indexOf(id);
+      if (idx >= 0) {
+        const mainRow = idx + 2;
+        main.getRange(mainRow, statusCol).setValue(newVal);
+        if (newVal === STATUS.APPROVED) deOverlapApproved_(mainRow);
+      }
+      rebuildPartitionSheets_();
+      return;
+    }
+  } catch (err) {
+    // no-op
+  }
+}
+
+/* ------------------------ Core helpers ------------------------ */
+function listNotes_(owner) {
+  const sh = getSheet_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const rows = sh.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
+
+  const statusIdx = HEADERS.indexOf('status');
+  const ownerIdx  = HEADERS.indexOf('owner');
+
+  return rows
+    .filter(r => {
+      const s = String(r[statusIdx] || '').toLowerCase().trim();
+      const o = String(r[ownerIdx]  || '');
+      return s === STATUS.APPROVED || (!!owner && o === owner && s !== STATUS.REJECTED);
+    })
+    .map(rowToObjByIndex_);
+}
+
+function rowToObjByIndex_(row) {
+  const o = {};
+  for (let i = 0; i < HEADERS.length; i++) o[HEADERS[i]] = row[i];
+
+  o.id     = String(o.id || '');
+  o.owner  = String(o.owner || '');
+  o.nick   = String(o.nick || '');
+  o.text   = (o.text == null) ? '' : String(o.text);
+  o.status = String(o.status || '').toLowerCase().trim();
+
+  o.x  = Number(o.x)  || 0;
+  o.y  = Number(o.y)  || 0;
+  o.fs = Number(o.fs) || 16;
+
+  return o;
+}
+
+function getSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAME);
+    sh.getRange(1,1,1,HEADERS.length).setValues([HEADERS]);
+  }
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList([STATUS.SUBMITTED, STATUS.APPROVED, STATUS.REJECTED], true).build();
+  sh.getRange(2, HEADERS.indexOf('status') + 1, Math.max(1, sh.getMaxRows()-1), 1).setDataValidation(rule);
+  return sh;
+}
+
+/* ------------------------ Settings & Assets ------------------------ */
+function getSettingsWithAssets_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('settings.v1');
+  if (cached) return JSON.parse(cached);
+
+  const settings = getSettings_();
+
+  const assets = {};
+  const signatures = {};
+
+  if (settings.bgImageName) {
+    const a = getAssetDataUrlByName_(settings.bgImageName);
+    if (a) { assets.bg = a.dataUrl; signatures.bg = a.signature; }
+  }
+  if (settings.postitImageName) {
+    const a = getAssetDataUrlByName_(settings.postitImageName);
+    if (a) { assets.postit = a.dataUrl; signatures.postit = a.signature; }
+  }
+
+  const payload = {
+    values: settings,
+    assets,
+    signatures,
+    allowedStatuses: Object.values(STATUS),
+    version: APP_VERSION
+  };
+
+  cache.put('settings.v1', JSON.stringify(payload), SETTINGS_CACHE_TTL);
+  return payload;
+}
+
+function getSettings_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SETTINGS_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(SETTINGS_SHEET);
+    sh.getRange(1,1).setValue('key');
+    sh.getRange(1,2).setValue('value');
+  }
+
+  const kv = {};
+  const values = sh.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    const k = String(values[i][0] || '').trim();
+    const v = String(values[i][1] || '').trim();
+    if (k) kv[k] = v;
+  }
+
+  const merged = Object.assign({}, DEFAULT_SETTINGS, kv);
+
+  const keys = Object.keys(DEFAULT_SETTINGS);
+  const rows = [];
+  const existing = new Set(values.slice(1).map(r=>String(r[0]||'')));
+  keys.forEach(k => {
+    if (!existing.has(k)) rows.push([k, DEFAULT_SETTINGS[k]]);
+  });
+  if (rows.length) sh.getRange(sh.getLastRow()+1,1,rows.length,2).setValues(rows);
+
+  return merged;
+}
+
+function getAssetDataUrlByName_(filename) {
+  const it = DriveApp.getFilesByName(filename);
+  if (!it.hasNext()) return null;
+  const file = it.next();
+  const sig = `${file.getId()}:${+file.getLastUpdated()}`;
+  const cache = CacheService.getScriptCache();
+  const key = `asset.${sig}`;
+
+  const cached = cache.get(key);
+  if (cached) return JSON.parse(cached);
+
+  const blob = file.getBlob();
+  const mime = blob.getContentType() || 'image/png';
+  const b64 = Utilities.base64Encode(blob.getBytes());
+  const dataUrl = `data:${mime};base64,${b64}`;
+
+  const payload = { signature: sig, dataUrl };
+  cache.put(key, JSON.stringify(payload), ASSET_CACHE_TTL);
+  return payload;
+}
+
+/* ------------------------ Partitions & Utilities ------------------------ */
+function rebuildPartitionSheets_() {
+  const sh = getSheet_();
+  const values = sh.getDataRange().getValues();
+  const header = values[0];
+  const dataRows = values.slice(1);
+
+  const by = { submitted:[], approved:[], rejected:[] };
+  const statusIdx = header.indexOf('status');
+
+  dataRows.forEach(r => {
+    const s = String(r[statusIdx]).toLowerCase();
+    if (s === STATUS.SUBMITTED) by.submitted.push(r);
+    else if (s === STATUS.APPROVED) by.approved.push(r);
+    else if (s === STATUS.REJECTED) by.rejected.push(r);
+  });
+
+  Object.keys(PARTITION_SHEET_NAMES).forEach(name => {
+    const title = PARTITION_SHEET_NAMES[name];
+    let p = SpreadsheetApp.getActive().getSheetByName(title);
+    if (!p) p = SpreadsheetApp.getActive().insertSheet(title);
+    p.clear();
+    p.getRange(1,1,1,header.length).setValues([header]);
+    const rows = by[name] || [];
+    if (rows.length) p.getRange(2,1,rows.length,header.length).setValues(rows);
+
+    const rule = SpreadsheetApp.newDataValidation()
+      .requireValueInList([STATUS.SUBMITTED, STATUS.APPROVED, STATUS.REJECTED], true).build();
+    const statusCol = HEADERS.indexOf('status') + 1;
+    p.getRange(2, statusCol, Math.max(1, p.getMaxRows()-1), 1).setDataValidation(rule);
+  });
+}
+
+function mirrorAppendToPartition_(status, row){
+  const title = PARTITION_SHEET_NAMES[status];
+  if (!title) return;
+  const ss = SpreadsheetApp.getActive();
+  let p = ss.getSheetByName(title);
+  if (!p) {
+    p = ss.insertSheet(title);
+    p.getRange(1,1,1,HEADERS.length).setValues([HEADERS]);
+  }
+  p.appendRow(row);
+
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList([STATUS.SUBMITTED, STATUS.APPROVED, STATUS.REJECTED], true).build();
+  const statusCol = HEADERS.indexOf('status') + 1;
+  p.getRange(2, statusCol, Math.max(1, p.getMaxRows()-1), 1).setDataValidation(rule);
+}
+
+function fixLegacyDrafts_() {
+  const sh = getSheet_();
+  const r = sh.getRange(2, HEADERS.indexOf('status')+1, Math.max(0, sh.getLastRow()-1), 1);
+  const vals = r.getValues();
+  let cnt = 0;
+  for (let i=0; i<vals.length; i++) {
+    const v = String(vals[i][0] || '').toLowerCase();
+    if (!v || v === 'draft') { vals[i][0] = STATUS.SUBMITTED; cnt++; }
+  }
+  if (vals.length) r.setValues(vals);
+  SpreadsheetApp.getUi().alert(`draft → submitted 정리: ${cnt}건`);
+}
+
+function showVersionDialog_() {
+  const sh = getSheet_();
+  const values = sh.getDataRange().getValues().slice(1);
+  const idx = HEADERS.indexOf('status');
+  const counts = { submitted:0, approved:0, rejected:0 };
+  values.forEach(r => {
+    const s = String(r[idx]).toLowerCase();
+    if (counts[s] == null) counts[s] = 0;
+    counts[s]++;
+  });
+  SpreadsheetApp.getUi().alert(
+    `MemorialNotes v${APP_VERSION}\nsubmitted: ${counts.submitted}\napproved: ${counts.approved}\nrejected: ${counts.rejected}`
+  );
+}
+
+/* ------------------------ Overlap handling ------------------------ */
+function deOverlapApproved_(row) {
+  const sh = getSheet_();
+  const rng = sh.getRange(row, 1, 1, HEADERS.length);
+  const rowVals = rng.getValues()[0];
+  const xIdx = HEADERS.indexOf('x'), yIdx = HEADERS.indexOf('y');
+  let x = parseFloat(rowVals[xIdx] || 0) || 0;
+  let y = parseFloat(rowVals[yIdx] || 0) || 0;
+
+  const settings = getSettings_();
+  const size = parseInt(settings.noteSizePx || '280', 10);
+  const margin = 12;
+
+  const values = sh.getDataRange().getValues().slice(1);
+  const statusIdx = HEADERS.indexOf('status');
+  const idIdx = HEADERS.indexOf('id');
+  const myId = rowVals[idIdx];
+
+  const rects = [];
+  values.forEach(r => {
+    if (String(r[statusIdx]).toLowerCase() === STATUS.APPROVED && r[idIdx] !== myId) {
+      const rx = parseFloat(r[xIdx] || 0) || 0;
+      const ry = parseFloat(r[yIdx] || 0) || 0;
+      rects.push({ x:rx, y:ry, w:size, h:size });
+    }
+  });
+
+  const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - size);
+  const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - size);
+
+  const me = { x, y, w:size, h:size };
+  let safety = 0;
+  while (rects.some(r => intersects_(me, r)) && safety < 2000) {
+    me.y += size + margin;
+    if (me.y > maxY) { // 아래로 넘치면 다음 열
+      me.y = 0;
+      me.x += size + margin;
+      if (me.x > maxX) { // 오른쪽도 넘치면 중단
+        break;
+      }
+    }
+    safety++;
+  }
+
+  me.x = clampNumber_(me.x, 0, maxX);
+  me.y = clampNumber_(me.y, 0, maxY);
+
+  if (me.x !== x || me.y !== y) {
+    sh.getRange(row, xIdx+1).setValue(me.x);
+    sh.getRange(row, yIdx+1).setValue(me.y);
+  }
+}
+
+function intersects_(a, b) {
+  return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+}
+
+/* ------------------------ Bootstrapping ------------------------ */
+function ensureSetup_() {
+  getSheet_();
+  getSettings_();
+}
+
+function sendNotifyEmail_(nick, text, tsKR) {
+  const s = getSettings_();
+  if (String(s.notifyOn || '').toLowerCase() !== 'yes') return;
+  const to = (s.notifyEmail || '').trim();
+  if (!to) return;
+  const subject = `새 메모 제출: ${nick}`;
+  const body = `닉네임: ${nick}\n시각(KST): ${tsKR}\n\n내용:\n${text}`;
+  MailApp.sendEmail({ to, subject, body, noReply: true });
+}
+
+/* ------------------------ Utils & Response helper ------------------------ */
+function clampNumber_(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+function cors_(out) {
+  try {
+    out.setHeader('Access-Control-Allow-Origin', '*');
+    out.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    out.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  } catch (e) {}
+  return out;
+}
+
+function json_(obj) {
+  const out = ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+  return cors_(out);
+}
+
+
+=============================================================
+B
+=============================================================
 <!doctype html>
 <html lang="ko">
 <head>
