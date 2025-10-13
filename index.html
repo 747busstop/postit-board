@@ -6,34 +6,25 @@
   <title>온라인 포스트잇 게시판</title>
   <style>
     :root{
-      --bg:#0f1115;
-      --text:#e8eaed;
-      --title-color:#ffffff;
-      --title-align:center;
-      --postit-image:none;
-      --board-image:none;
-      --note-size: 280px;
-      --panel-width: 320px;
-      --cam-x: 0px;
-      --cam-y: 0px;
-      --scale: 1;
-      --topbar-h: 56px;
+      --bg:#0f1115; --text:#e8eaed; --title-color:#ffffff; --title-align:center;
+      --postit-image:none; --board-image:none; --note-size: 280px; --panel-width: 320px;
+      --cam-x: 0px; --cam-y: 0px; --scale: 1; --topbar-h: 56px;
     }
     *{ box-sizing:border-box; }
     html,body{
-      margin:0; height:100%; min-height:100vh; min-height:100dvh;
+      margin:0; height:100%; min-height:100dvh;
       background:var(--bg); color:var(--text);
       font-family:"Noto Sans KR",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
       overscroll-behavior: none;
     }
     button{ cursor:pointer; }
-
-    .app{ display:grid; grid-template-rows:auto auto 1fr; height:100%; min-height:100vh; min-height:100dvh; }
+    .app{ display:grid; grid-template-rows:auto auto 1fr; height:100%; }
     .main{ position:relative; height:100%; min-height:0; overflow:hidden; }
 
     .topbar{
       position:relative; display:grid; grid-template-columns:auto 1fr auto;
-      align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid #20242b; background:#0b0e13aa; backdrop-filter: blur(6px);
+      align-items:center; gap:8px; padding:10px 12px;
+      border-bottom:1px solid #20242b; background:#0b0e13aa; backdrop-filter: blur(6px);
     }
     .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; font-size:18px; letter-spacing:.2px; }
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
@@ -41,8 +32,8 @@
     .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; }
 
     .toolbar{
-      display:flex; align-items:center; gap:12px;
-      padding:8px 12px; border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(4px); z-index:60;
+      display:flex; align-items:center; gap:12px; padding:8px 12px;
+      border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(4px); z-index:60;
     }
     .toolbar .zoomwrap{ flex:1; display:flex; justify-content:center; }
     .toolbar .group{ display:flex; gap:8px; align-items:center; }
@@ -53,8 +44,7 @@
       position:fixed; top:var(--topbar-h); bottom:0; width:var(--panel-width);
       background:#0b0e13f2; border-right:1px solid #1f2430;
       transform: translateX(calc(var(--panel-x, -100%)));
-      transition: transform .25s ease; overflow:auto; padding:12px;
-      left:0; z-index:1000;
+      transition: transform .25s ease; overflow:auto; padding:12px; left:0; z-index:1000;
     }
     .panel.right{ left:auto; right:0; border-right:none; border-left:1px solid #1f2430; transform: translateX(calc(var(--panel-x, 100%))); }
     .panel.open{ --panel-x: 0%; }
@@ -71,22 +61,18 @@
     .btns{ display:inline-flex; align-items:center; gap:8px; }
     .sep{ opacity:.6; }
 
-    /* 보드: 커서를 '기본 화살표'로 고정 */
+    /* 보드: 커서를 '기본 화살표'로 고정 (PC에서 grab 아이콘 제거) */
     .board{
       position:absolute; inset:0; background-image: var(--board-image);
       background-position:center; background-size:cover; background-repeat:no-repeat;
-      cursor: default;                   /* ← grab 아이콘 제거 */
-      touch-action: none;
-      will-change: transform;
+      cursor: default; touch-action: none; will-change: transform;
     }
-    .board.panning{ cursor: default; }   /* ← grabbing 아이콘 제거 */
+    .board.panning{ cursor: default; } /* grabbing 아이콘 제거 */
 
     .world{
       position:absolute; left:0; top:0;
       transform: translate(var(--cam-x), var(--cam-y)) scale(var(--scale));
-      transform-origin: 0 0;
-      width:30000px; height:30000px;
-      will-change: transform;
+      transform-origin: 0 0; width:30000px; height:30000px; will-change: transform;
     }
 
     .note{
@@ -125,9 +111,9 @@
     .fsDial input[type="range"]{ writing-mode: vertical-lr; direction: rtl; appearance: none; width: 28px; height: 140px; background:transparent; }
     .fsVal{ color:#111; font-size:12px; text-align:center; margin-top:4px; }
 
-    /* 미니맵: 우측 하단 고정, 0~10000 경계 기준 */
     .minimap{
-      position:absolute; right:12px; bottom:12px; width:160px; height:160px; background:#0b0e13cc; border:1px solid #293241; border-radius:12px; overflow:hidden; z-index:45;
+      position:absolute; right:12px; bottom:12px; width:160px; height:160px;
+      background:#0b0e13cc; border:1px solid #293241; border-radius:12px; overflow:hidden; z-index:45;
       box-shadow:0 6px 16px rgba(0,0,0,.25);
     }
     .minimap canvas{ width:100%; height:100%; display:block; }
@@ -181,27 +167,20 @@
     const API = 'https://script.google.com/macros/s/AKfycbyg1kxxW6lCaB5MCvgd8OE1YXTDIzo4WsTiirkDiyh-AnMn0FjabVLbr18vAX-duYiw3w/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
-    const BOUNDS = { W: 10000, H: 10000 }; // 경계 0~10000
+    const BOUNDS = { W: 10000, H: 10000 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
 
     /* ====== State ====== */
     const state = {
-      owner: getOrSetOwner_(),
-      settings: null,
-      notes: [],
-      draft: loadDraft_(),
-      panelOpen: false,
-      panelDock: 'left',
-      panPrev: null,
-      zMap: {},                 // id -> z
-      zCounters: { submitted:0, approved:0 },
-      lastTapTime: 0, lastTapPos: {x:0,y:0}
+      owner: getOrSetOwner_(), settings: null, notes: [],
+      draft: loadDraft_(), panelOpen: false, panelDock: 'left', panPrev: null,
+      zMap: {}, zCounters: { submitted:0, approved:0 }, lastTapTime: 0, lastTapPos: {x:0,y:0}
     };
 
     const $root = document.documentElement;
     const $title = document.getElementById('title');
     const $panel = document.getElementById('panel');
-    the $topbar = document.getElementById('topbar');
+    const $topbar = document.getElementById('topbar');  /* ← 오타 수정 (the 제거) */
     const $listBody  = document.getElementById('list');
     const $world = document.getElementById('world');
     const $board = document.getElementById('board');
@@ -225,7 +204,6 @@
       await bootstrap();
       bindUI();
       renderAll();
-      // 시작 위치: (5000, 5000) — 미니맵 중앙과 일치
       focusWorldPoint({ x: 5000, y: 5000 });
       updateTopbarActions();
       window.addEventListener('resize', onResize);
@@ -365,7 +343,6 @@
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
 
-        // 내용이 많으면 자동 축소(최소 8pt) → 포스트잇 크기 고정
         const body = el.querySelector('.body');
         autoFitText(body, n.fs || 14, 8);
 
@@ -375,7 +352,6 @@
         $world.appendChild(el);
       }
 
-      // Draft
       if (state.draft) {
         const d = state.draft;
         clampDraftToWorld_(d);
@@ -456,7 +432,6 @@
     function findNoteElById(id){ return $world.querySelector(`.note[data-id="${safeEscapeCss(id||'')}"]`); }
     function getNoteById(id){ return state.notes.find(n => (n.id||'') === (id||'')); }
 
-    /* ====== 선택시 계층: draft(9999) > submitted(9000+) > approved(8000+) ====== */
     function bringToFrontEl(el){
       const id = el.dataset.id || '';
       const note = getNoteById(id);
@@ -464,7 +439,7 @@
       const tier = (status === 'submitted') ? 'submitted' : 'approved';
       const base = (tier === 'submitted') ? 9000 : 8000;
       state.zCounters[tier] = (state.zCounters[tier] || 0) + 1;
-      const z = Math.min(9998, base + state.zCounters[tier]); // 드래프트(9999) 바로 아래까지만
+      const z = Math.min(9998, base + state.zCounters[tier]);
       state.zMap[id] = z;
       el.style.zIndex = z;
     }
@@ -474,7 +449,7 @@
       if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) setZoomAtCenter(1.0);
       const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
       focusWorldPoint(center);
-      bringToFrontById(n.id); // 승인/대기 모두 드래프트 바로 아래까지 최상단
+      bringToFrontById(n.id);
     }
     function focusNote(n){
       const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
@@ -501,7 +476,7 @@
       setZoomAtCenter(s);
 
       const center = { x: bb.x + bb.w/2, y: bb.y/2 + bb.h/2 };
-      focusWorldPoint(center, false);
+      focusWorldPoint(center);
     }
 
     /* ====== Draft ====== */
@@ -549,16 +524,8 @@
         try{
           const res = await fetch(API, { method:'POST', body: fd, headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' } });
           const j = await res.json();
-          if (!j.ok) {
-            alert(j.error || '제출 실패');
-            $submit.disabled=false; $del.disabled=false; $submit.textContent='✓';
-            return;
-          }
-          const newNote = {
-            id: j.id, owner: state.owner, nick: d.nick, text: d.text,
-            status: 'submitted', ts: j.ts, tsKR: j.tsKR,
-            x, y, fs: d.fs||16
-          };
+          if (!j.ok) { alert(j.error || '제출 실패'); $submit.disabled=false; $del.disabled=false; $submit.textContent='✓'; return; }
+          const newNote = { id: j.id, owner: state.owner, nick: d.nick, text: d.text, status: 'submitted', ts: j.ts, tsKR: j.tsKR, x, y, fs: d.fs||16 };
           state.notes.push(sanitizeNote(newNote));
           state.draft = null; localStorage.removeItem('mn_draft');
           renderAll();
@@ -576,15 +543,8 @@
       if (state.draft) { centerOnDraft(1.0); return; }
       const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
       const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
-      const d = {
-        nick:'', text:'',
-        x: clamp(Math.round(pos.x||0), 0, maxX),
-        y: clamp(Math.round(pos.y||0), 0, maxY),
-        fs: 16
-      };
-      state.draft = d;
-      saveDraft_(state.draft);
-      renderAll();
+      const d = { nick:'', text:'', x: clamp(Math.round(pos.x||0), 0, maxX), y: clamp(Math.round(pos.y||0), 0, maxY), fs: 16 };
+      state.draft = d; saveDraft_(state.draft); renderAll();
       if (zoomToCenter) centerOnDraft(1.0);
     }
 
@@ -648,9 +608,7 @@
     const pointers = new Map();
     const pinch = { active:false, lastDist:0, lastMid:{x:0,y:0} };
 
-    // ★ PC(마우스)에서는 보드 드래그 이동 비활성화
     function onPointerDown(ev){
-      // 더블탭(모바일) 새 메모
       if (ev.pointerType === 'touch' && !ev.target.closest('input,textarea,button,select,.panel,.dragHandle,.ctrlBar,.fsDial')){
         const now = performance.now();
         const isNear = Math.hypot(ev.clientX - state.lastTapPos.x, ev.clientY - state.lastTapPos.y) < 30;
@@ -670,8 +628,7 @@
 
       if (ev.target.closest('input, textarea, button, select, .panel, .dragHandle, .ctrlBar, .fsDial')) return;
 
-      // 마우스 드래그로는 보드 이동 금지 (PC 요구사항)
-      if (ev.pointerType === 'mouse') return;
+      if (ev.pointerType === 'mouse') return; // PC: 보드 드래그 이동 금지
 
       stopInertia();
       $board.setPointerCapture(ev.pointerId);
@@ -741,9 +698,7 @@
         $board.classList.remove('panning');
         state.panPrev = null;
         const speed = Math.hypot(pan.lastVX, pan.lastVY);
-        if (wasDragging && speed > 0.02) {
-          startInertia(pan.lastVX, pan.lastVY);
-        }
+        if (wasDragging && speed > 0.02) startInertia(pan.lastVX, pan.lastVY);
         pan.lastVX = pan.lastVY = 0;
       }
     }
@@ -782,21 +737,18 @@
       }
     }
 
-    /* ====== Minimap (0~10000 기준) ====== */
+    /* ====== Minimap ====== */
     function updateMinimap(){
       const ctx = $minimap.getContext('2d');
       const dpr = window.devicePixelRatio || 1;
       const cssW = $miniWrap.clientWidth || 160, cssH = $miniWrap.clientHeight || 160;
-      $minimap.width = Math.round(cssW * dpr);
-      $minimap.height = Math.round(cssH * dpr);
+      $minimap.width = Math.round(cssW * dpr); $minimap.height = Math.round(cssH * dpr);
       ctx.setTransform(dpr,0,0,dpr,0,0);
-
       ctx.clearRect(0,0, cssW, cssH);
       ctx.fillStyle = '#0b0e13'; ctx.fillRect(0,0, cssW, cssH);
       ctx.strokeStyle = '#293241'; ctx.strokeRect(0.5,0.5, cssW-1, cssH-1);
 
       const sx = cssW / BOUNDS.W, sy = cssH / BOUNDS.H, s = Math.min(sx, sy);
-
       ctx.fillStyle = '#9ab6ff';
       const dot = Math.max(2, Math.round(NOTE.W * s * 0.5));
       const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
@@ -854,13 +806,11 @@
     function autoFitText(el, preferredPt, minPt){
       let pt = Math.max(minPt||8, preferredPt||14);
       el.style.fontSize = pt + 'pt';
-      const maxLoops = 30;
-      let loops = 0;
+      const maxLoops = 30; let loops = 0;
       while (loops < maxLoops && el.scrollHeight > el.clientHeight && pt > (minPt||8)) {
         const ratio = el.clientHeight / Math.max(1, el.scrollHeight);
         pt = Math.max(minPt||8, Math.floor(Math.min(pt - 1, pt * (ratio * 0.98))));
-        el.style.fontSize = pt + 'pt';
-        loops++;
+        el.style.fontSize = pt + 'pt'; loops++;
       }
     }
 
@@ -869,13 +819,9 @@
       const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
       return {
         ...n,
-        nick: toStr(n.nick),
-        text: toStr(n.text),
-        tsKR: toStr(n.tsKR),
-        ts: toStr(n.ts),
+        nick: toStr(n.nick), text: toStr(n.text), tsKR: toStr(n.tsKR), ts: toStr(n.ts),
         status: (n.status||'').toString().toLowerCase(),
-        x: clamp(Number(n.x)||0, 0, maxX),
-        y: clamp(Number(n.y)||0, 0, maxY),
+        x: clamp(Number(n.x)||0, 0, maxX), y: clamp(Number(n.y)||0, 0, maxY),
         fs: clamp(Number(n.fs) || 16, 8, 36)
       };
     }
