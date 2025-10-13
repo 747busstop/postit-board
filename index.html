@@ -45,30 +45,23 @@
       background:#0b0e13f2; border-right:1px solid #1f2430;
       transform: translateX(calc(var(--panel-x, -100%)));
       transition: transform .25s ease; overflow:auto; padding:12px; left:0; z-index:1000;
-      --name-col-ch: 12;  /* JS에서 최대 닉네임 글자수(<=27)로 갱신 */
-      --act-col-px: 84px; /* JS에서 실제 버튼 영역 폭으로 갱신 */
     }
     .panel.right{ left:auto; right:0; border-right:none; border-left:1px solid #1f2430; transform: translateX(calc(var(--panel-x, 100%))); }
     .panel.open{ --panel-x: 0%; }
-
     .panel h3{ margin:6px 0 8px; font-size:14px; color:#b7c2cf; }
 
-    /* 리스트: 고정 레이아웃 + colgroup로 폭 제어, 내용은 (…) */
-    .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
-    .table col.col-name{ width: min(40%, calc(var(--name-col-ch) * 1ch)); } /* 최대 40%까지, 글자수 기반 */
-    .table col.col-text{ width:auto; }
-    .table col.col-act{ width: var(--act-col-px); }
-
+    /* 리스트: 자동 레이아웃 + 내용 줄바꿈 */
+    .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:auto; }
     .table th, .table td{ border-bottom:1px solid #273040; padding:8px; text-align:left; vertical-align:top; }
     .table th{ color:#b7c2cf; font-weight:600; position:sticky; top:0; background:#0b0e13f2; }
     .table tr{ cursor:pointer; }
 
-    .cell-ellipsis{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }  /* 한 줄 (…) */
-    .name .cell-ellipsis{ /* 닉네임도 (…) */ }
-    .text .cell-ellipsis{ /* 내용 (…) */ }
+    /* 줄바꿈 처리: 긴 텍스트도 자연스럽게 줄바꿈 */
+    .wrap{ display:block; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
 
+    /* 작업 칼럼은 내용(아이콘) 길이에 맞게 */
     .table td.act{ }
-    .btns{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; } /* 작업 칼럼은 줄바꿈 없이 최소폭 */
+    .btns{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
     .table .btn{ padding:6px 8px; min-width:36px; min-height:30px; }
     .sep{ opacity:.6; }
 
@@ -78,7 +71,8 @@
       background-position:center; background-size:cover; background-repeat:no-repeat;
       cursor: default; touch-action: none; will-change: transform;
     }
-    .board.panning{ cursor: default; }
+    /* 드래그 중 손바닥(잡는) 커서 */
+    .board.panning{ cursor: grabbing; cursor: -webkit-grabbing; }
 
     .world{
       position:absolute; left:0; top:0;
@@ -166,11 +160,6 @@
   <aside id="panel" class="panel">
     <h3>승인된 메모</h3>
     <table class="table">
-      <colgroup>
-        <col class="col-name">
-        <col class="col-text">
-        <col class="col-act">
-      </colgroup>
       <thead>
         <tr><th class="name">닉네임</th><th class="text">내용</th><th class="act">작업</th></tr>
       </thead>
@@ -180,7 +169,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbwz-44pKXB4k-G3K0DrstGYaZjZaWaqT0P8dofCqcmMk0R6IpSGoCMALekrb4zQNewsDg/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbx-z3Gpq9Et68pVsFIUs0OjkLdYU4xLD1NRncjb6RH9g387VWMa4rHLsVMXqQWU3wyvFQ/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -228,7 +217,6 @@
     function onResize(){
       recalcTopbarHeight_();
       updateMinimap();
-      tuneListColumnWidths();   // 패널 폭 변동 시 재계산
       stopInertia();
     }
 
@@ -327,10 +315,6 @@
     function togglePanel(){
       state.panelOpen = !state.panelOpen;
       $panel.classList.toggle('open', state.panelOpen);
-      if (state.panelOpen) {
-        // 열릴 때 한번 계산
-        tuneListColumnWidths();
-      }
     }
 
     async function refreshList(){
@@ -422,8 +406,8 @@
       for (const n of items) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="name"><span class="cell-ellipsis">${escapeHtml(toStr(n.nick||'익명'))}</span></td>
-          <td class="text"><span class="cell-ellipsis">${escapeHtml(toStr(n.text))}</span></td>
+          <td class="name"><span class="wrap">${escapeHtml(toStr(n.nick||'익명'))}</span></td>
+          <td class="text"><span class="wrap">${escapeHtml(toStr(n.text))}</span></td>
           <td class="act">
             <div class="btns">
               <button class="btn btn-move" title="이동" aria-label="이동">🧭</button>
@@ -440,165 +424,9 @@
         };
         $listBody.appendChild(tr);
       }
-      tuneListColumnWidths();  // 렌더 후 컬럼 폭 자동 조정
     }
 
-    // 닉네임 최대글자(<=27) 기반 name 폭, 실제 버튼 폭 기반 act 폭 산출
-    function tuneListColumnWidths(){
-      const items = [...$listBody.querySelectorAll('tr')];
-      let maxNameLen = 0;
-      for (const tr of items){
-        const name = tr.querySelector('.name .cell-ellipsis')?.textContent || '';
-        maxNameLen = Math.max(maxNameLen, name.length);
-      }
-      maxNameLen = Math.max(4, Math.min(27, maxNameLen)); // 최소 4ch, 최대 27ch
-      $panel.style.setProperty('--name-col-ch', String(maxNameLen));
-
-      const sampleBtns = $listBody.querySelector('.btns');
-      const actWidth = sampleBtns ? Math.ceil(sampleBtns.getBoundingClientRect().width) + 16 /*padding 여유*/ : 84;
-      $panel.style.setProperty('--act-col-px', actWidth + 'px');
-    }
-
-    function updateTopbarActions(){
-      const hasDraft = !!state.draft;
-      $btnNew.style.display = hasDraft ? 'none' : '';
-      $btnGo.style.display  = hasDraft ? '' : 'none';
-      $btnDel.style.display = hasDraft ? '' : 'none';
-    }
-
-    function safeEscapeCss(s){ if (window.CSS && CSS.escape) return CSS.escape(String(s)); return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&'); }
-    function findNoteElById(id){ return $world.querySelector(`.note[data-id="${safeEscapeCss(id||'')}"]`); }
-    function getNoteById(id){ return state.notes.find(n => (n.id||'') === (id||'')); }
-
-    function bringToFrontEl(el){
-      const id = el.dataset.id || '';
-      const note = getNoteById(id);
-      const status = (note && note.status) || 'approved';
-      const tier = (status === 'submitted') ? 'submitted' : 'approved';
-      const base = (tier === 'submitted') ? 9000 : 8000;
-      state.zCounters[tier] = (state.zCounters[tier] || 0) + 1;
-      const z = Math.min(9998, base + state.zCounters[tier]);
-      state.zMap[id] = z;
-      el.style.zIndex = z;
-    }
-    function bringToFrontById(id){ const el = findNoteElById(id); if (el) bringToFrontEl(el); }
-
-    function moveToNote(n){
-      if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) setZoomAtCenter(1.0);
-      const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
-      focusWorldPoint(center);
-      bringToFrontById(n.id);
-    }
-    function focusNote(n){
-      const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
-      focusWorldPoint(center);
-      bringToFrontById(n.id);
-      if (!state.panelOpen) togglePanel();
-    }
-
-    function fitAll(){
-      const rects = [];
-      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
-      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
-      for (const n of state.notes) rects.push({x:clamp(n.x||0,0,maxX), y:clamp(n.y||0,0,maxY), w:NOTE.W,h:NOTE.H});
-      if (state.draft) rects.push({x:clamp(state.draft.x||0,0,maxX), y:clamp(state.draft.y||0,0,maxY), w:NOTE.W,h:NOTE.H});
-      if (!rects.length) { setZoomAtCenter(CAMERA.scale); return; }
-
-      const bb = boundsOf(rects);
-      const pad = 80;
-      const vw = $board.clientWidth - pad*2;
-      const vh = $board.clientHeight - pad*2;
-      const s1 = vw / (bb.w||1);
-      const s2 = vh / (bb.h||1);
-      const s = clamp(Math.min(s1, s2), CAMERA.min, CAMERA.max);
-      setZoomAtCenter(s);
-
-      const center = { x: bb.x + bb.w/2, y: bb.y/2 + bb.h/2 };
-      focusWorldPoint(center);
-    }
-
-    /* ====== Draft ====== */
-    function wireDraftForm_(root, d){
-      const $nick = root.querySelector('#dNick');
-      const $text = root.querySelector('#dText');
-      const $fs   = root.querySelector('#dFs');
-      const $submit = root.querySelector('#dSubmit');
-      const $del    = root.querySelector('#dDelete');
-      const $fsVal  = root.querySelector('.fsVal');
-
-      const sync = () => {
-        d.nick = ($nick.value || '').slice(0,27).trim();
-        d.text = $text.value;
-        d.fs = clamp(parseInt($fs.value,10)||16, 8, 36);
-        $fsVal.textContent = d.fs+'pt';
-        $text.style.fontSize = d.fs+'pt';
-        saveDraft_(d);
-        updateTopbarActions();
-      };
-
-      $nick.oninput = sync; $text.oninput = sync; $fs.oninput = sync;
-
-      $submit.onclick = async () => {
-        if (!d.nick) { d.nick = '익명'; $nick.value = '익명'; }
-        if (!d.text) { alert('내용을 입력하세요.'); return; }
-        if (!confirm('이 내용으로 제출하시겠습니까? 제출 후에는 수정/삭제가 불가합니다.')) return;
-
-        $submit.disabled = true; $del.disabled = true; $submit.textContent = '✓';
-
-        const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
-        const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
-        const x = Math.round(clamp(d.x||0, 0, maxX));
-        const y = Math.round(clamp(d.y||0, 0, maxY));
-
-        const fd = new URLSearchParams();
-        fd.set('action','create');
-        fd.set('owner', state.owner);
-        fd.set('nick', d.nick);
-        fd.set('text', d.text);
-        fd.set('x', x);
-        fd.set('y', y);
-        fd.set('fs', d.fs||16);
-
-        try{
-          const res = await fetch(API, { method:'POST', body: fd, headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' } });
-          const j = await res.json();
-          if (!j.ok) { alert(j.error || '제출 실패'); $submit.disabled=false; $del.disabled=false; $submit.textContent='✓'; return; }
-          const newNote = { id: j.id, owner: state.owner, nick: d.nick, text: d.text, status: 'submitted', ts: j.ts, tsKR: j.tsKR, x, y, fs: d.fs||16 };
-          state.notes.push(sanitizeNote(newNote));
-          state.draft = null; localStorage.removeItem('mn_draft');
-          renderAll();
-          refreshList();
-        }catch(err){
-          alert('네트워크 오류로 제출에 실패했습니다.\n(웹앱 배포 권한 또는 CORS 설정을 확인하세요)');
-          $submit.disabled=false; $del.disabled=false; $submit.textContent='✓';
-        }
-      };
-
-      $del.onclick = clearDraft;
-    }
-
-    function createDraftAt(pos, zoomToCenter=false){
-      if (state.draft) { centerOnDraft(1.0); return; }
-      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
-      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
-      const d = { nick:'', text:'', x: clamp(Math.round(pos.x||0), 0, maxX), y: clamp(Math.round(pos.y||0), 0, maxY), fs: 16 };
-      state.draft = d; saveDraft_(state.draft); renderAll();
-      if (zoomToCenter) centerOnDraft(1.0);
-    }
-
-    function centerOnDraft(scale=1.0){
-      if (!state.draft) { alert('작성 중인 메모가 없습니다.'); return; }
-      const d = state.draft;
-      const center = { x: (d.x||0) + NOTE.W/2, y: (d.y||0) + NOTE.H/2 };
-      setZoomAtPoint(scale, $board.getBoundingClientRect().left + $board.clientWidth/2, $board.getBoundingClientRect().top + $board.clientHeight/2);
-      focusWorldPoint(center);
-    }
-
-    function clearDraft(){ state.draft = null; localStorage.removeItem('mn_draft'); renderAll(); updateTopbarActions(); }
-    function saveDraft_(d){ localStorage.setItem('mn_draft', JSON.stringify(d)); updateTopbarActions(); }
-    function loadDraft_(){ try{ return JSON.parse(localStorage.getItem('mn_draft')||'null'); }catch(e){ return null; } }
-
-    /* ====== Camera & Geometry ====== */
+    /* ====== 카메라/좌표 ====== */
     function toWorld(cx, cy){
       const r = $board.getBoundingClientRect();
       const sx = cx - r.left, sy = cy - r.top;
@@ -642,12 +470,12 @@
       return { x:minx, y:miny, w:maxx-minx, h:maxy-miny };
     }
 
-    /* ====== Pan / Wheel / Pinch + 더블탭 ====== */
+    /* ====== Pan / Wheel / Pinch ====== */
     const pointers = new Map();
     const pinch = { active:false, lastDist:0, lastMid:{x:0,y:0} };
 
     function onPointerDown(ev){
-      // 터치 더블탭: 새 메모
+      // 모바일: 더블탭 새 메모
       if (ev.pointerType === 'touch' && !ev.target.closest('input,textarea,button,select,.panel,.dragHandle,.ctrlBar,.fsDial')){
         const now = performance.now();
         const isNear = Math.hypot(ev.clientX - state.lastTapPos.x, ev.clientY - state.lastTapPos.y) < 30;
@@ -667,8 +495,8 @@
 
       if (ev.target.closest('input, textarea, button, select, .panel, .dragHandle, .ctrlBar, .fsDial')) return;
 
-      // PC는 기본 드래그 금지(이전 요구사항); 모바일은 핀치/드래그로 이동
-      if (ev.pointerType === 'mouse') return;
+      // 데스크톱: 가운데(휠) 버튼으로만 드래그 허용
+      if (ev.pointerType === 'mouse' && ev.button !== 1) return;
 
       stopInertia();
       $board.setPointerCapture(ev.pointerId);
@@ -681,10 +509,10 @@
         pinch.lastMid  = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
       } else if (pointers.size === 1){
         pan.lastT = performance.now();
-        $board.classList.add('panning');
+        $board.classList.add('panning'); // 손바닥 커서
       }
 
-      ev.preventDefault();
+      ev.preventDefault(); // 브라우저 기본 autoscroll 방지
     }
 
     function onPointerMove(ev){
@@ -735,7 +563,7 @@
       pointers.delete(ev.pointerId);
       if (pointers.size < 2) { pinch.active = false; pinch.lastDist = 0; }
       if (pointers.size === 0){
-        $board.classList.remove('panning');
+        $board.classList.remove('panning'); // 손바닥 커서 해제
         state.panPrev = null;
         const speed = Math.hypot(pan.lastVX, pan.lastVY);
         if (wasDragging && speed > 0.02) startInertia(pan.lastVX, pan.lastVY);
