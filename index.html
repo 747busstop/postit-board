@@ -192,8 +192,7 @@
 
     const $zoomRangeTop = document.getElementById('zoomRangeTop');
     const $btnNew = document.getElementById('btnNew');
-    const $btnGo  = document.getElementById('btnGo');
-    const $btnDel = document.getElementById('btnDel');
+    ...
 
     const $miniWrap = document.getElementById('miniWrap');
     const $minimap = document.getElementById('minimap');
@@ -404,9 +403,10 @@
         .sort((a,b)=> (+new Date(a.ts||a.tsKR)) - (+new Date(b.ts||b.tsKR)));
       $listBody.innerHTML = '';
       for (const n of items) {
+        const nick27 = toStr(n.nick||'익명').slice(0,27); // 닉네임 27자 보장
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="name"><span class="wrap">${escapeHtml(toStr(n.nick||'익명'))}</span></td>
+          <td class="name"><span class="wrap">${escapeHtml(nick27)}</span></td>
           <td class="text"><span class="wrap">${escapeHtml(toStr(n.text))}</span></td>
           <td class="act">
             <div class="btns">
@@ -425,6 +425,87 @@
         $listBody.appendChild(tr);
       }
     }
+
+    /* ====== Draft ====== */
+    function wireDraftForm_(root, d){
+      const $nick = root.querySelector('#dNick');
+      const $text = root.querySelector('#dText');
+      const $fs   = root.querySelector('#dFs');
+      const $submit = root.querySelector('#dSubmit');
+      const $del    = root.querySelector('#dDelete');
+      const $fsVal  = root.querySelector('.fsVal');
+
+      const sync = () => {
+        d.nick = ($nick.value || '').slice(0,27).trim();
+        d.text = $text.value;
+        d.fs = clamp(parseInt($fs.value,10)||16, 8, 36);
+        $fsVal.textContent = d.fs+'pt';
+        $text.style.fontSize = d.fs+'pt';
+        saveDraft_(d);
+        updateTopbarActions();
+      };
+
+      $nick.oninput = sync; $text.oninput = sync; $fs.oninput = sync;
+
+      $submit.onclick = async () => {
+        if (!d.nick) { d.nick = '익명'; $nick.value = '익명'; }
+        if (!d.text) { alert('내용을 입력하세요.'); return; }
+        if (!confirm('이 내용으로 제출하시겠습니까? 제출 후에는 수정/삭제가 불가합니다.')) return;
+
+        $submit.disabled = true; $del.disabled = true; $submit.textContent = '✓';
+
+        const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+        const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+        const x = Math.round(clamp(d.x||0, 0, maxX));
+        const y = Math.round(clamp(d.y||0, 0, maxY));
+
+        const fd = new URLSearchParams();
+        fd.set('action','create');
+        fd.set('owner', state.owner);
+        fd.set('nick', d.nick);
+        fd.set('text', d.text);
+        fd.set('x', x);
+        fd.set('y', y);
+        fd.set('fs', d.fs||16);
+
+        try{
+          const res = await fetch(API, { method:'POST', body: fd, headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' } });
+          const j = await res.json();
+          if (!j.ok) { alert(j.error || '제출 실패'); $submit.disabled=false; $del.disabled=false; $submit.textContent='✓'; return; }
+          const newNote = { id: j.id, owner: state.owner, nick: d.nick, text: d.text, status: 'submitted', ts: j.ts, tsKR: j.tsKR, x, y, fs: d.fs||16 };
+          state.notes.push(sanitizeNote(newNote));
+          state.draft = null; localStorage.removeItem('mn_draft');
+          renderAll();
+          refreshList();
+        }catch(err){
+          alert('네트워크 오류로 제출에 실패했습니다.\n(웹앱 배포 권한 또는 CORS 설정을 확인하세요)');
+          $submit.disabled=false; $del.disabled=false; $submit.textContent='✓';
+        }
+      };
+
+      $del.onclick = clearDraft;
+    }
+
+    function createDraftAt(pos, zoomToCenter=false){
+      if (state.draft) { centerOnDraft(1.0); return; }
+      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+      const d = { nick:'', text:'', x: clamp(Math.round(pos.x||0), 0, maxX), y: clamp(Math.round(pos.y||0), 0, maxY), fs: 16 };
+      state.draft = d; saveDraft_(state.draft); renderAll();
+      if (zoomToCenter) centerOnDraft(1.0);
+    }
+
+    function centerOnDraft(scale=1.0){
+      if (!state.draft) { alert('작성 중인 메모가 없습니다.'); return; }
+      const d = state.draft;
+      const center = { x: (d.x||0) + NOTE.W/2, y: (d.y||0) + NOTE.H/2 };
+      setZoomAtCenter(scale);
+      focusWorldPoint(center);
+    }
+
+    function clearDraft(){ state.draft = null; localStorage.removeItem('mn_draft'); renderAll(); updateTopbarActions(); }
+    function saveDraft_(d){ localStorage.setItem('mn_draft', JSON.stringify(d)); updateTopbarActions(); }
+    function loadDraft_(){ try{ return JSON.parse(localStorage.getItem('mn_draft')||'null'); }catch(e){ return null; } }
 
     /* ====== 카메라/좌표 ====== */
     function toWorld(cx, cy){
@@ -470,6 +551,27 @@
       return { x:minx, y:miny, w:maxx-minx, h:maxy-miny };
     }
 
+    function fitAll(){
+      const rects = [];
+      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+      for (const n of state.notes) rects.push({x:clamp(n.x||0,0,maxX), y:clamp(n.y||0,0,maxY), w:NOTE.W,h:NOTE.H});
+      if (state.draft) rects.push({x:clamp(state.draft.x||0,0,maxX), y:clamp(state.draft.y||0,0,maxY), w:NOTE.W,h:NOTE.H});
+      if (!rects.length) { setZoomAtCenter(CAMERA.scale); return; }
+
+      const bb = boundsOf(rects);
+      const pad = 80;
+      const vw = $board.clientWidth - pad*2;
+      const vh = $board.clientHeight - pad*2;
+      const s1 = vw / (bb.w||1);
+      const s2 = vh / (bb.h||1);
+      const s = clamp(Math.min(s1, s2), CAMERA.min, CAMERA.max);
+      setZoomAtCenter(s);
+
+      const center = { x: bb.x + bb.w/2, y: bb.y + bb.h/2 };
+      focusWorldPoint(center);
+    }
+
     /* ====== Pan / Wheel / Pinch ====== */
     const pointers = new Map();
     const pinch = { active:false, lastDist:0, lastMid:{x:0,y:0} };
@@ -495,7 +597,7 @@
 
       if (ev.target.closest('input, textarea, button, select, .panel, .dragHandle, .ctrlBar, .fsDial')) return;
 
-      // 데스크톱: 가운데(휠) 버튼으로만 드래그 허용
+      // 데스크톱: 가운데(휠) 버튼으로만 드래그 허용 + 손바닥 커서
       if (ev.pointerType === 'mouse' && ev.button !== 1) return;
 
       stopInertia();
@@ -651,16 +753,6 @@
       focusWorldPoint({ x: wx, y: wy });
     }
 
-    /* ====== Capture ====== */
-    async function captureElem(el, filename){
-      try{
-        if (!window.html2canvas) throw new Error('no html2canvas');
-        const canvas = await html2canvas(el, {backgroundColor: null, useCORS: true, scale: 2});
-        const a = document.createElement('a');
-        a.href = canvas.toDataURL('image/png'); a.download = filename || 'capture.png'; a.click();
-      } catch (e) { window.print(); }
-    }
-
     /* ====== Utils ====== */
     function setVar(k, v){ document.documentElement.style.setProperty(k, v); }
     function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
@@ -699,6 +791,39 @@
       const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
       d.x = clamp(Number(d.x)||0, 0, maxX);
       d.y = clamp(Number(d.y)||0, 0, maxY);
+    }
+
+    function bringToFrontEl(el){
+      const id = el.dataset.id || '';
+      const note = getNoteById(id);
+      const status = (note && note.status) || 'approved';
+      const tier = (status === 'submitted') ? 'submitted' : 'approved';
+      const base = (tier === 'submitted') ? 9000 : 8000;
+      state.zCounters[tier] = (state.zCounters[tier] || 0) + 1;
+      const z = Math.min(9998, base + state.zCounters[tier]);
+      state.zMap[id] = z;
+      el.style.zIndex = z;
+    }
+    function findNoteElById(id){ return $world.querySelector(`.note[data-id="${(window.CSS&&CSS.escape)?CSS.escape(String(id||'')):String(id||'').replace(/[^a-zA-Z0-9_-]/g,'\\$&')}"]`); }
+    function getNoteById(id){ return state.notes.find(n => (n.id||'') === (id||'')); }
+    function moveToNote(n){
+      if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) setZoomAtCenter(1.0);
+      const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
+      focusWorldPoint(center);
+      const el = findNoteElById(n.id); if (el) bringToFrontEl(el);
+    }
+    function focusNote(n){
+      const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
+      focusWorldPoint(center);
+      const el = findNoteElById(n.id); if (el) bringToFrontEl(el);
+      if (!state.panelOpen) togglePanel();
+    }
+
+    function updateTopbarActions(){
+      const hasDraft = !!state.draft;
+      $btnNew.style.display = hasDraft ? 'none' : '';
+      $btnGo.style.display  = hasDraft ? '' : 'none';
+      $btnDel.style.display = hasDraft ? '' : 'none';
     }
 
     function enableDrag(el, ondrag, handleSelector){
