@@ -71,15 +71,15 @@
     .btns{ display:inline-flex; align-items:center; gap:8px; }
     .sep{ opacity:.6; }
 
+    /* 보드: 커서를 '기본 화살표'로 고정 */
     .board{
       position:absolute; inset:0; background-image: var(--board-image);
-      background-position:center; background-size:cover; background-repeat:no-repeat; cursor: grab;
+      background-position:center; background-size:cover; background-repeat:no-repeat;
+      cursor: default;                   /* ← grab 아이콘 제거 */
       touch-action: none;
       will-change: transform;
-      
-
     }
-    .board.panning{ cursor: grabbing; }
+    .board.panning{ cursor: default; }   /* ← grabbing 아이콘 제거 */
 
     .world{
       position:absolute; left:0; top:0;
@@ -178,7 +178,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbzoZji-geLcoVtmgzLO0ijcLj8lJ-pyXp0jqTW4DSEyxQxuDj65wt0RLcCubZ5ct49MIw/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbyg1kxxW6lCaB5MCvgd8OE1YXTDIzo4WsTiirkDiyh-AnMn0FjabVLbr18vAX-duYiw3w/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 }; // 경계 0~10000
@@ -201,7 +201,7 @@
     const $root = document.documentElement;
     const $title = document.getElementById('title');
     const $panel = document.getElementById('panel');
-    const $topbar = document.getElementById('topbar');
+    the $topbar = document.getElementById('topbar');
     const $listBody  = document.getElementById('list');
     const $world = document.getElementById('world');
     const $board = document.getElementById('board');
@@ -456,7 +456,7 @@
     function findNoteElById(id){ return $world.querySelector(`.note[data-id="${safeEscapeCss(id||'')}"]`); }
     function getNoteById(id){ return state.notes.find(n => (n.id||'') === (id||'')); }
 
-    /* ====== 선택시 계층: draft(최상단=9999) > submitted(9000+) > approved(8000+) ====== */
+    /* ====== 선택시 계층: draft(9999) > submitted(9000+) > approved(8000+) ====== */
     function bringToFrontEl(el){
       const id = el.dataset.id || '';
       const note = getNoteById(id);
