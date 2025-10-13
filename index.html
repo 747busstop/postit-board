@@ -56,11 +56,9 @@
     .table th{ color:#b7c2cf; font-weight:600; position:sticky; top:0; background:#0b0e13f2; }
     .table tr{ cursor:pointer; }
 
-    /* 줄바꿈 처리: 긴 텍스트도 자연스럽게 줄바꿈 */
+    /* 줄바꿈 처리 */
     .wrap{ display:block; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
 
-    /* 작업 칼럼은 내용(아이콘) 길이에 맞게 */
-    .table td.act{ }
     .btns{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
     .table .btn{ padding:6px 8px; min-width:36px; min-height:30px; }
     .sep{ opacity:.6; }
@@ -71,7 +69,6 @@
       background-position:center; background-size:cover; background-repeat:no-repeat;
       cursor: default; touch-action: none; will-change: transform;
     }
-    /* 드래그 중 손바닥(잡는) 커서 */
     .board.panning{ cursor: grabbing; cursor: -webkit-grabbing; }
 
     .world{
@@ -169,7 +166,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbx-z3Gpq9Et68pVsFIUs0OjkLdYU4xLD1NRncjb6RH9g387VWMa4rHLsVMXqQWU3wyvFQ/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbwj7ikMFRPkTEsPmyFhU3wKis5YbCt-zHNekasQ1sFt3M6YGuauVqHS7IYFdbP-kguJfQ/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -192,7 +189,8 @@
 
     const $zoomRangeTop = document.getElementById('zoomRangeTop');
     const $btnNew = document.getElementById('btnNew');
-    ...
+    const $btnGo  = document.getElementById('btnGo');
+    const $btnDel = document.getElementById('btnDel');
 
     const $miniWrap = document.getElementById('miniWrap');
     const $minimap = document.getElementById('minimap');
@@ -226,7 +224,7 @@
 
     async function bootstrap(){
       const url = `${API}?action=bootstrap&owner=${encodeURIComponent(state.owner)}`;
-      const j = await (await fetch(url)).json();
+      const j = await (await fetch(url, {mode:'cors'})).json();
       if (!j.ok) throw new Error('bootstrap failed');
 
       const s = j.settings.values;
@@ -318,7 +316,7 @@
 
     async function refreshList(){
       const url = `${API}?action=list&owner=${encodeURIComponent(state.owner)}`;
-      const j = await (await fetch(url)).json();
+      const j = await (await fetch(url, {mode:'cors'})).json();
       if (j.ok) { state.notes = (j.data || []).map(sanitizeNote); renderAll(); }
     }
 
@@ -403,7 +401,7 @@
         .sort((a,b)=> (+new Date(a.ts||a.tsKR)) - (+new Date(b.ts||b.tsKR)));
       $listBody.innerHTML = '';
       for (const n of items) {
-        const nick27 = toStr(n.nick||'익명').slice(0,27); // 닉네임 27자 보장
+        const nick27 = toStr(n.nick||'익명').slice(0,27);
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="name"><span class="wrap">${escapeHtml(nick27)}</span></td>
@@ -611,10 +609,10 @@
         pinch.lastMid  = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
       } else if (pointers.size === 1){
         pan.lastT = performance.now();
-        $board.classList.add('panning'); // 손바닥 커서
+        $board.classList.add('panning');
       }
 
-      ev.preventDefault(); // 브라우저 기본 autoscroll 방지
+      ev.preventDefault(); // 기본 autoscroll 방지
     }
 
     function onPointerMove(ev){
@@ -665,7 +663,7 @@
       pointers.delete(ev.pointerId);
       if (pointers.size < 2) { pinch.active = false; pinch.lastDist = 0; }
       if (pointers.size === 0){
-        $board.classList.remove('panning'); // 손바닥 커서 해제
+        $board.classList.remove('panning');
         state.panPrev = null;
         const speed = Math.hypot(pan.lastVX, pan.lastVY);
         if (wasDragging && speed > 0.02) startInertia(pan.lastVX, pan.lastVY);
@@ -751,6 +749,21 @@
       const sx = cssW / BOUNDS.W, sy = cssH / BOUNDS.H, s = Math.min(sx, sy);
       const wx = x / s, wy = y / s;
       focusWorldPoint({ x: wx, y: wy });
+    }
+
+    /* ====== Capture ====== */
+    async function captureElem(el, filename){
+      try{
+        if (!window.html2canvas) throw new Error('no html2canvas');
+        const canvas = await html2canvas(el, {backgroundColor: null, useCORS: true, scale: 2});
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = filename || 'capture.png';
+        a.click();
+      }catch(e){
+        // 폴백
+        window.print();
+      }
     }
 
     /* ====== Utils ====== */
