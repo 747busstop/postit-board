@@ -45,25 +45,34 @@
       background:#0b0e13f2; border-right:1px solid #1f2430;
       transform: translateX(calc(var(--panel-x, -100%)));
       transition: transform .25s ease; overflow:auto; padding:12px; left:0; z-index:1000;
+      --name-col-ch: 12;  /* JS에서 최대 닉네임 글자수(<=27)로 갱신 */
+      --act-col-px: 84px; /* JS에서 실제 버튼 영역 폭으로 갱신 */
     }
     .panel.right{ left:auto; right:0; border-right:none; border-left:1px solid #1f2430; transform: translateX(calc(var(--panel-x, 100%))); }
     .panel.open{ --panel-x: 0%; }
 
     .panel h3{ margin:6px 0 8px; font-size:14px; color:#b7c2cf; }
 
-    /* (2) 자동 맞춤: table-layout을 auto로 변경하고, 고정폭/nowrap 제거 */
-    .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:auto; }
+    /* 리스트: 고정 레이아웃 + colgroup로 폭 제어, 내용은 (…) */
+    .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
+    .table col.col-name{ width: min(40%, calc(var(--name-col-ch) * 1ch)); } /* 최대 40%까지, 글자수 기반 */
+    .table col.col-text{ width:auto; }
+    .table col.col-act{ width: var(--act-col-px); }
+
     .table th, .table td{ border-bottom:1px solid #273040; padding:8px; text-align:left; vertical-align:top; }
     .table th{ color:#b7c2cf; font-weight:600; position:sticky; top:0; background:#0b0e13f2; }
     .table tr{ cursor:pointer; }
-    .table td .ell{ display:block; white-space:normal; overflow:hidden; text-overflow:ellipsis; }
-    .table td.name{ word-break:break-word; }            /* width 고정 제거 */
-    .table td.text{ width:auto; }
-    .table td.act{ /* width·nowrap 제거로 줄바꿈 허용 */ }
-    .btns{ display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; } /* 필요시 줄바꿈 */
+
+    .cell-ellipsis{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }  /* 한 줄 (…) */
+    .name .cell-ellipsis{ /* 닉네임도 (…) */ }
+    .text .cell-ellipsis{ /* 내용 (…) */ }
+
+    .table td.act{ }
+    .btns{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; } /* 작업 칼럼은 줄바꿈 없이 최소폭 */
+    .table .btn{ padding:6px 8px; min-width:36px; min-height:30px; }
     .sep{ opacity:.6; }
 
-    /* 보드: 커서는 기본 화살표 유지 */
+    /* 보드 */
     .board{
       position:absolute; inset:0; background-image: var(--board-image);
       background-position:center; background-size:cover; background-repeat:no-repeat;
@@ -157,6 +166,11 @@
   <aside id="panel" class="panel">
     <h3>승인된 메모</h3>
     <table class="table">
+      <colgroup>
+        <col class="col-name">
+        <col class="col-text">
+        <col class="col-act">
+      </colgroup>
       <thead>
         <tr><th class="name">닉네임</th><th class="text">내용</th><th class="act">작업</th></tr>
       </thead>
@@ -166,7 +180,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbyoHNicgSIyu6hmWWLrG5dMbHZiOP8dVlg16ffNvVSExEqc6xyVx_u9EFIbmEOMGFp3dg/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbwz-44pKXB4k-G3K0DrstGYaZjZaWaqT0P8dofCqcmMk0R6IpSGoCMALekrb4zQNewsDg/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -206,7 +220,6 @@
       await bootstrap();
       bindUI();
       renderAll();
-      // 초기 초점: 경계 중앙
       focusWorldPoint({ x: 5000, y: 5000 });
       updateTopbarActions();
       window.addEventListener('resize', onResize);
@@ -215,6 +228,7 @@
     function onResize(){
       recalcTopbarHeight_();
       updateMinimap();
+      tuneListColumnWidths();   // 패널 폭 변동 시 재계산
       stopInertia();
     }
 
@@ -313,6 +327,10 @@
     function togglePanel(){
       state.panelOpen = !state.panelOpen;
       $panel.classList.toggle('open', state.panelOpen);
+      if (state.panelOpen) {
+        // 열릴 때 한번 계산
+        tuneListColumnWidths();
+      }
     }
 
     async function refreshList(){
@@ -404,13 +422,13 @@
       for (const n of items) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="name">${escapeHtml(toStr(n.nick||'익명'))}</td>
-          <td class="text"><span class="ell">${escapeHtml(toStr(n.text))}</span></td>
+          <td class="name"><span class="cell-ellipsis">${escapeHtml(toStr(n.nick||'익명'))}</span></td>
+          <td class="text"><span class="cell-ellipsis">${escapeHtml(toStr(n.text))}</span></td>
           <td class="act">
             <div class="btns">
-              <button class="btn btn-move" title="이동" aria-label="이동">이동</button>
+              <button class="btn btn-move" title="이동" aria-label="이동">🧭</button>
               <span class="sep">|</span>
-              <button class="btn btn-cap"  title="캡처" aria-label="캡처">캡처</button>
+              <button class="btn btn-cap"  title="캡처" aria-label="캡처">📷</button>
             </div>
           </td>
         `;
@@ -422,6 +440,23 @@
         };
         $listBody.appendChild(tr);
       }
+      tuneListColumnWidths();  // 렌더 후 컬럼 폭 자동 조정
+    }
+
+    // 닉네임 최대글자(<=27) 기반 name 폭, 실제 버튼 폭 기반 act 폭 산출
+    function tuneListColumnWidths(){
+      const items = [...$listBody.querySelectorAll('tr')];
+      let maxNameLen = 0;
+      for (const tr of items){
+        const name = tr.querySelector('.name .cell-ellipsis')?.textContent || '';
+        maxNameLen = Math.max(maxNameLen, name.length);
+      }
+      maxNameLen = Math.max(4, Math.min(27, maxNameLen)); // 최소 4ch, 최대 27ch
+      $panel.style.setProperty('--name-col-ch', String(maxNameLen));
+
+      const sampleBtns = $listBody.querySelector('.btns');
+      const actWidth = sampleBtns ? Math.ceil(sampleBtns.getBoundingClientRect().width) + 16 /*padding 여유*/ : 84;
+      $panel.style.setProperty('--act-col-px', actWidth + 'px');
     }
 
     function updateTopbarActions(){
@@ -611,9 +646,8 @@
     const pointers = new Map();
     const pinch = { active:false, lastDist:0, lastMid:{x:0,y:0} };
 
-    // (1) 마우스 휠 버튼(가운데 버튼)으로만 보드 드래그 허용
     function onPointerDown(ev){
-      // 더블탭(모바일) 새 메모
+      // 터치 더블탭: 새 메모
       if (ev.pointerType === 'touch' && !ev.target.closest('input,textarea,button,select,.panel,.dragHandle,.ctrlBar,.fsDial')){
         const now = performance.now();
         const isNear = Math.hypot(ev.clientX - state.lastTapPos.x, ev.clientY - state.lastTapPos.y) < 30;
@@ -633,8 +667,8 @@
 
       if (ev.target.closest('input, textarea, button, select, .panel, .dragHandle, .ctrlBar, .fsDial')) return;
 
-      // 마우스: 왼쪽/오른쪽 버튼은 드래그 금지, 가운데 버튼만 허용
-      if (ev.pointerType === 'mouse' && ev.button !== 1) return;
+      // PC는 기본 드래그 금지(이전 요구사항); 모바일은 핀치/드래그로 이동
+      if (ev.pointerType === 'mouse') return;
 
       stopInertia();
       $board.setPointerCapture(ev.pointerId);
@@ -650,7 +684,7 @@
         $board.classList.add('panning');
       }
 
-      ev.preventDefault(); // 브라우저 기본 autoscroll 방지
+      ev.preventDefault();
     }
 
     function onPointerMove(ev){
