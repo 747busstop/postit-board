@@ -366,8 +366,13 @@
         el.style.height = NOTE.H+'px';
         el.innerHTML = `
           <div class="dragHandle" title="드래그하여 이동" aria-label="드래그하여 이동">
-            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2l3 3h-2v4h-2V5H9l3-3zM12 22l-3-3h2v-4h2v4h2l-3 3zM2 12l3-3v2হ4v2H5v2l-3-3zM22 12l-3 3v-2h-4v-2h4V9l3 3z" fill="#111"/>
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false" role="img">
+              <path
+                d="M12 2l3 3h-2v4h-2V5H9l3-3z
+                   M12 22l-3-3h2v-4h2v4h2l-3 3z
+                   M2 12l3-3v2h4v2H5v2l-3-3z
+                   M22 12l-3 3v-2h-4v-2h4V9l3 3z"
+                fill="#111"/>
             </svg>
           </div>
           <input id="dNick" class="nickInput" maxlength="27" placeholder="닉네임(최대 27자)" value="${escapeAttr(toStr(d.nick||''))}">
