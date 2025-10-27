@@ -9,6 +9,8 @@
       --bg:#0f1115; --text:#e8eaed; --title-color:#ffffff; --title-align:center;
       --postit-image:none; --board-image:none; --note-size: 280px; --panel-width: 320px;
       --cam-x: 0px; --cam-y: 0px; --scale: 1; --topbar-h: 56px;
+      /* ⬇️ 제목 자동 피팅용 기본 폰트 크기 변수 */
+      --title-font-px: 18px;
     }
     *{ box-sizing:border-box; }
     html,body{
@@ -21,17 +23,24 @@
     .app{ display:grid; grid-template-rows:auto auto 1fr; height:100%; }
     .main{ position:relative; height:100%; min-height:0; overflow:hidden; }
 
-    /* ⬇️ 상단 바 배경색을 툴바와 동일(#0b0e13ee)로 통일 */
+    /* ⬇️ 상단 바 배경색을 툴바와 동일 */
     .topbar{
       position:relative; display:grid; grid-template-columns:auto 1fr auto;
       align-items:center; gap:8px; padding:10px 12px;
       border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(6px);
     }
 
-    .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; letter-spacing:.2px; }
-    /* ⬇️ 두 줄 제목 크기 동일(18px) */
-    .title .line1{ font-size:18px; line-height:1.1; }
-    .title .line2{ margin-top:2px; font-size:18px; line-height:1.1; font-weight:600; opacity:.9; }
+    .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; letter-spacing:.2px; overflow:hidden; }
+    /* ⬇️ 두 줄 제목 크기 동일 + 줄바꿈 방지 + 넘침시 말줄임 */
+    .title .line1,
+    .title .line2{
+      font-size: var(--title-font-px);
+      line-height:1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .title .line2{ margin-top:2px; font-weight:600; opacity:.9; }
 
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
     .right-actions{ display:flex; gap:8px; justify-self:end; }
@@ -170,7 +179,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbwPg67gGxbiBLqapl0CXpysxd-p9tpIKKGr9hLrZTzq6kBYwXntwFiM-_3p9YX3TIfN8Q/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbyK8YaotMsvzYjkDFcK0XRMzKSj8k7SC2fgXXDqQH3Z0SUIPOD6Vizi-W5mFXMR2L7Ckw/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -210,12 +219,20 @@
       await bootstrap();
       bindUI();
       renderAll();
+      fitTitle();            // ⬅️ 제목 자동 피팅
       focusWorldPoint({ x: 5000, y: 5000 });
       updateTopbarActions();
       window.addEventListener('resize', onResize);
+
+      // 컨테이너 크기 변화 대응(모바일 회전 등)
+      if (window.ResizeObserver){
+        const ro = new ResizeObserver(()=>{ fitTitle(); recalcTopbarHeight_(); });
+        ro.observe($title);
+      }
     })();
 
     function onResize(){
+      fitTitle();
       recalcTopbarHeight_();
       updateMinimap();
       stopInertia();
@@ -267,6 +284,10 @@
 
       updateCamera(0, 0, CAMERA.scale);
       updateMinimap();
+
+      // 타이틀 피팅은 내용 세팅 후 실행
+      fitTitle();
+      recalcTopbarHeight_();
     }
 
     /* ====== UI ====== */
@@ -415,7 +436,7 @@
         .sort((a,b)=> (+new Date(a.ts||a.tsKR)) - (+new Date(b.ts||b.tsKR)));
       $listBody.innerHTML = '';
       for (const n of items) {
-        const nick27 = toStr(n.nick||'익명').slice(0,27);
+        const nick27 = toStr(nickOrAnon(n)).slice(0,27);
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="name"><span class="wrap">${escapeHtml(nick27)}</span></td>
@@ -436,6 +457,31 @@
         };
         $listBody.appendChild(tr);
       }
+    }
+
+    /* ====== Title auto-fit (두 줄 동일 크기, 컨테이너 폭에 맞춰 축소) ====== */
+    function fitTitle(){
+      const container = $title;
+      if (!container) return;
+
+      const basePx = 18;       // 기본 폰트 px
+      const minPx  = 12;       // 최소 폰트 px
+      // 기본값으로 리셋 후 측정
+      $root.style.setProperty('--title-font-px', basePx + 'px');
+
+      // 다음 프레임에서 실제 크기 측정(레이아웃 반영 보장)
+      requestAnimationFrame(()=>{
+        const w = Math.max(0, container.clientWidth - 2); // 여유치 2px
+        const l1 = container.querySelector('.line1');
+        const l2 = container.querySelector('.line2');
+
+        let scale = 1;
+        if (l1 && l1.scrollWidth > w) scale = Math.min(scale, w / l1.scrollWidth);
+        if (l2 && l2.scrollWidth > w) scale = Math.min(scale, w / l2.scrollWidth);
+
+        const px = Math.max(minPx, Math.floor(basePx * Math.min(1, scale)));
+        $root.style.setProperty('--title-font-px', px + 'px');
+      });
     }
 
     /* ====== Draft ====== */
@@ -783,6 +829,7 @@
     /* ====== Utils ====== */
     function setVar(k, v){ document.documentElement.style.setProperty(k, v); }
     function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
+    function nickOrAnon(n){ return (n.nick && String(n.nick).trim()) ? n.nick : '익명'; }
     function getOrSetOwner_(){ let id = localStorage.getItem('mn_owner'); if (!id) { id = cryptoRandomId_(); localStorage.setItem('mn_owner', id); } return id; }
     function cryptoRandomId_(){ const a = new Uint8Array(16); crypto.getRandomValues(a); return [...a].map(x=>x.toString(16).padStart(2,'0')).join(''); }
     function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
