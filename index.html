@@ -187,7 +187,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbxwTJoCrpeQm1mu0Wulowm_wKt60wTATRq52kwC6_hgaUGbdUgd2Sb4YkOVVtlt_R3l1g/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbzTOE3YUEy33lDIKlhqk8DS34e1camB208mKTeYP1s87__fw_DQpf8HYUerIEiRrc8sqA/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -261,6 +261,9 @@
       setVar('--title-align', s.titleAlign || 'center');
       setVar('--bg', s.bgColor || '#0f1115');
 
+      // ⬇️ 제목 색상(신규: settings.screenTitleColor)
+      setVar('--title-color', s.screenTitleColor || '#ffffff');
+
       // ⬇️ 제목 전용 폰트 및 외부 CSS URL(복수 지원)
       setVar('--title-font', (s.screenTitleFont || 'inherit'));
       if (s.screenTitleFontUrl) {
@@ -326,6 +329,10 @@
       $zoomRangeTop.oninput = e => setZoomAtCenter(parseFloat(e.target.value));
       document.getElementById('fitAllTop').onclick = fitAll;
       document.getElementById('capBoardTop').onclick = () => captureElem($board, 'board.png');
+
+      const $btnNew = document.getElementById('btnNew');
+      const $btnDel = document.getElementById('btnDel');
+      const $btnGo  = document.getElementById('btnGo');
 
       $btnNew.onclick = () => {
         if (state.draft) { centerOnDraft(1.0); return; }
