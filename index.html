@@ -6,9 +6,7 @@
   <title>온라인 포스트잇 게시판</title>
   <style>
     :root{
-      --bg:#0f1115; --text:#e8eaed;
-      --title-color:#ffffff; --title-align:center; --title-font: inherit;
-      --subtitle-color-1:#94a3b8; --subtitle-color-2:#60a5fa;
+      --bg:#0f1115; --text:#e8eaed; --title-color:#ffffff; --title-align:center;
       --postit-image:none; --board-image:none; --note-size: 280px; --panel-width: 320px;
       --cam-x: 0px; --cam-y: 0px; --scale: 1; --topbar-h: 56px;
     }
@@ -28,18 +26,7 @@
       align-items:center; gap:8px; padding:10px 12px;
       border-bottom:1px solid #20242b; background:#0b0e13aa; backdrop-filter: blur(6px);
     }
-    .titleWrap{ text-align:var(--title-align); line-height:1.1; }
-    .title{
-      color:var(--title-color); font-weight:800; font-size:18px; letter-spacing:.2px;
-      font-family: var(--title-font), "Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    }
-    .subtitle{
-      margin-top:2px; font-weight:700; font-size:12px; letter-spacing:.1px;
-      font-family: var(--title-font), "Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif; /* ⬅️ 제목폰트 공유 */
-    }
-    .subtitle .l1{ color:var(--subtitle-color-1); }
-    .subtitle .l2{ color:var(--subtitle-color-2); }
-    
+    .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; font-size:18px; letter-spacing:.2px; }
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
     .right-actions{ display:flex; gap:8px; justify-self:end; }
     .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; }
@@ -63,12 +50,13 @@
     .panel.open{ --panel-x: 0%; }
     .panel h3{ margin:6px 0 8px; font-size:14px; color:#b7c2cf; }
 
-    /* 리스트 */
+    /* 리스트: 자동 레이아웃 + 내용 줄바꿈 */
     .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:auto; }
     .table th, .table td{ border-bottom:1px solid #273040; padding:8px; text-align:left; vertical-align:top; }
     .table th{ color:#b7c2cf; font-weight:600; position:sticky; top:0; background:#0b0e13f2; }
     .table tr{ cursor:pointer; }
 
+    /* 줄바꿈 처리 */
     .wrap{ display:block; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
 
     .btns{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
@@ -138,16 +126,7 @@
   <div class="app">
     <div class="topbar" id="topbar">
       <button id="btnPanel" class="iconbtn" title="리스트" aria-label="리스트">🗂️</button>
-
-      <!-- ⬇️ 제목 + 부제(두 줄) -->
-      <div class="titleWrap" id="titleWrap">
-        <div class="title" id="title">온라인 포스트잇 게시판</div>
-        <div class="subtitle" id="subtitle" style="display:none;">
-          <span class="l1" id="sub1"></span><br>
-          <span class="l2" id="sub2"></span>
-        </div>
-      </div>
-
+      <div class="title" id="title">온라인 포스트잇 게시판</div>
       <div class="right-actions">
         <button id="btnNew" class="btn primary" title="새 메모" aria-label="새 메모">＋</button>
         <button id="btnGo"  class="btn" style="display:none;" title="작성중으로 이동" aria-label="작성중으로 이동">🧭</button>
@@ -187,7 +166,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbw4juJA7PVNAXfqLgydhUohlvbc4a5LcUt0_vkOG-PtB0ePNpumXuJ_kk8PoO4A-iQPbw/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbyTwm-vDj0hCGixnp2ULpzuNLC3wj6k1kFV_PhhNBnFiCRjLl1MJkujhdXBEi2cVTavZQ/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -202,10 +181,6 @@
 
     const $root = document.documentElement;
     const $title = document.getElementById('title');
-    const $subtitle = document.getElementById('subtitle');
-    const $sub1 = document.getElementById('sub1');
-    const $sub2 = document.getElementById('sub2');
-
     const $panel = document.getElementById('panel');
     const $topbar = document.getElementById('topbar');
     const $listBody  = document.getElementById('list');
@@ -255,43 +230,10 @@
       const s = j.settings.values;
       state.settings = j.settings;
 
-      // Title & Subtitle
       $title.textContent = toStr(s.screenTitle || '온라인 포스트잇 게시판');
       document.title = toStr(s.pageTitle || $title.textContent);
       setVar('--title-align', s.titleAlign || 'center');
       setVar('--bg', s.bgColor || '#0f1115');
-
-      // ⬇️ 제목 색상(신규: settings.screenTitleColor)
-      setVar('--title-color', s.screenTitleColor || '#ffffff');
-
-      // ⬇️ 제목 전용 폰트 및 외부 CSS URL(복수 지원)
-      setVar('--title-font', (s.screenTitleFont || 'inherit'));
-      if (s.screenTitleFontUrl) {
-        (s.screenTitleFontUrl.split(',') || [])
-          .map(u => u.trim())
-          .filter(Boolean)
-          .forEach(u => {
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = u;
-            document.head.appendChild(link);
-          });
-      }
-      // ⬇️ 시트에 직접 적은 CSS(@font-face 등)을 그대로 주입
-      if (s.screenTitleFontCss) {
-        const style = document.createElement('style');
-        style.textContent = s.screenTitleFontCss;
-        document.head.appendChild(style);
-      }
-
-      // ⬇️ 부제(두 줄) + 색상
-      setVar('--subtitle-color-1', s.screenSubtitleColor1 || '#94a3b8');
-      setVar('--subtitle-color-2', s.screenSubtitleColor2 || '#60a5fa');
-      const line1 = toStr(s.screenSubtitleLine1 || '');
-      const line2 = toStr(s.screenSubtitleLine2 || '');
-      $sub1.textContent = line1;
-      $sub2.textContent = line2;
-      $subtitle.style.display = (line1 || line2) ? '' : 'none';
 
       const ns = parseInt(s.noteSizePx || '280', 10);
       NOTE.W = NOTE.H = ns; setVar('--note-size', ns+'px');
@@ -317,7 +259,6 @@
 
       updateCamera(0, 0, CAMERA.scale);
       updateMinimap();
-      recalcTopbarHeight_(); // 부제 표시 후 높이 재계산
     }
 
     /* ====== UI ====== */
@@ -329,10 +270,6 @@
       $zoomRangeTop.oninput = e => setZoomAtCenter(parseFloat(e.target.value));
       document.getElementById('fitAllTop').onclick = fitAll;
       document.getElementById('capBoardTop').onclick = () => captureElem($board, 'board.png');
-
-      const $btnNew = document.getElementById('btnNew');
-      const $btnDel = document.getElementById('btnDel');
-      const $btnGo  = document.getElementById('btnGo');
 
       $btnNew.onclick = () => {
         if (state.draft) { centerOnDraft(1.0); return; }
@@ -903,9 +840,6 @@
 
     function updateTopbarActions(){
       const hasDraft = !!state.draft;
-      const $btnNew = document.getElementById('btnNew');
-      const $btnGo  = document.getElementById('btnGo');
-      const $btnDel = document.getElementById('btnDel');
       $btnNew.style.display = hasDraft ? 'none' : '';
       $btnGo.style.display  = hasDraft ? '' : 'none';
       $btnDel.style.display = hasDraft ? '' : 'none';
