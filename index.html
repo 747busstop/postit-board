@@ -12,8 +12,8 @@
       /* 제목 자동 피팅 기본 크기 + 폰트 패밀리 + 라인별 색상 */
       --title-font-px: 18px;
       --title-font-family: inherit;
-      --title-line1-color: unset;   /* ⬅️ settings로 지정 시 덮어씀 */
-      --title-line2-color: unset;   /* ⬅️ settings로 지정 시 덮어씀 */
+      --title-line1-color: unset;
+      --title-line2-color: unset;
     }
     *{ box-sizing:border-box; }
     html,body{
@@ -33,18 +33,31 @@
     }
 
     .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; letter-spacing:.2px; overflow:hidden; }
+    /* 두 줄 모드 */
     .title .line1,
     .title .line2{
       font-size: var(--title-font-px);
       font-family: var(--title-font-family);
       line-height:1.1;
-      white-space: nowrap;       /* ⬅️ 한 줄 고정 */
+      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    /* 라인별 색상: 미지정 시 타이틀 기본색을 상속 */
     .title .line1{ color: var(--title-line1-color, inherit); }
     .title .line2{ color: var(--title-line2-color, inherit); margin-top:2px; font-weight:600; opacity:.95; }
+
+    /* 한 줄 결합 모드 */
+    .title .lineCombined{
+      font-size: var(--title-font-px);
+      font-family: var(--title-font-family);
+      line-height:1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .title .lineCombined .p1{ color: var(--title-line1-color, inherit); font-weight:700; }
+    .title .lineCombined .p2{ color: var(--title-line2-color, inherit); font-weight:600; opacity:.95; }
+    .title .lineCombined .sep{ opacity:.85; margin: 0 .4ch; }
 
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
     .right-actions{ display:flex; gap:8px; justify-self:end; }
@@ -141,9 +154,7 @@
   <div class="app">
     <div class="topbar" id="topbar">
       <button id="btnPanel" class="iconbtn" title="리스트" aria-label="리스트">🗂️</button>
-      <div class="title" id="title">
-        <!-- JS에서 line1/line2를 채웁니다 -->
-      </div>
+      <div class="title" id="title"><!-- JS에서 채움 --></div>
       <div class="right-actions">
         <button id="btnNew" class="btn primary" title="새 메모" aria-label="새 메모">＋</button>
         <button id="btnGo"  class="btn" style="display:none;" title="작성중으로 이동" aria-label="작성중으로 이동">🧭</button>
@@ -195,17 +206,21 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbxM5reJ7Ppr5RU1jA_mHFktUJUllBNaTZ4PqqTqJfE62P_EnTyNaV8v_AHVv-rGP0kK/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbxfET44gELBKlEk_xb8wp45dHwDSc0J5wX0IEbdCFwcXMKuYdWA5yD0LfxrZ9Q-QCdqog/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
 
+    // 제목 한 줄 전환 임계값(px)
+    const TITLE_ONE_LINE_BREAKPOINT = 1200;
+
     /* ====== State ====== */
     const state = {
       owner: getOrSetOwner_(), settings: null, notes: [],
       draft: loadDraft_(), panelOpen: false, panelDock: 'left', panPrev: null,
-      zMap: {}, zCounters: { submitted:0, approved:0 }, lastTapTime: 0, lastTapPos: {x:0,y:0}
+      zMap: {}, zCounters: { submitted:0, approved:0 }, lastTapTime: 0, lastTapPos: {x:0,y:0},
+      titleParts: { l1:'', l2:'' }, titleOneLine: false
     };
 
     const $root = document.documentElement;
@@ -231,18 +246,23 @@
 
     /* ====== Boot ====== */
     (async function init(){
-      applyGithubTitleFont_();     // ⬅️ 폰트 주입 & 변수 설정
+      applyGithubTitleFont_();
       recalcTopbarHeight_();
       await bootstrap();
       bindUI();
       renderAll();
-      fitTitle();                  // ⬅️ 제목 자동 피팅
+      evaluateTitleLayout();   // ⬅️ 폭에 따라 1줄/2줄 결정
+      fitTitle();              // ⬅️ 자동 피팅
       focusWorldPoint({ x: 5000, y: 5000 });
       updateTopbarActions();
       window.addEventListener('resize', onResize);
 
       if (window.ResizeObserver){
-        const ro = new ResizeObserver(()=>{ fitTitle(); recalcTopbarHeight_(); });
+        const ro = new ResizeObserver(()=>{
+          evaluateTitleLayout();
+          fitTitle();
+          recalcTopbarHeight_();
+        });
         ro.observe($title);
       }
     })();
@@ -268,6 +288,7 @@
       if (document.fonts && document.fonts.load){
         const w = parseInt(cfg.weight, 10) || 400;
         document.fonts.load(`${w} 18px '${cfg.name}'`).then(()=>{
+          evaluateTitleLayout();
           fitTitle();
           recalcTopbarHeight_();
         }).catch(()=>{});
@@ -277,6 +298,7 @@
     function cssEscape_(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
     function onResize(){
+      evaluateTitleLayout();
       fitTitle();
       recalcTopbarHeight_();
       updateMinimap();
@@ -296,16 +318,16 @@
       const s = j.settings.values;
       state.settings = j.settings;
 
-      // 두 줄 제목 적용
+      // 제목 파트 저장
       const line1 = toStr(s.screenTitleLine1 || s.screenTitle || '온라인 포스트잇 게시판');
       const line2 = toStr(s.screenTitleLine2 || '');
-      $title.innerHTML = `<div class="line1">${escapeHtml(line1)}</div>${line2 ? `<div class="line2">${escapeHtml(line2)}</div>` : ''}`;
+      state.titleParts = { l1: line1, l2: line2 };
+      renderTitleDOM(); // 현재 모드에 맞춰 DOM 구성
 
       document.title = toStr(s.pageTitle || line1);
       setVar('--title-align', s.titleAlign || 'center');
       setVar('--bg', s.bgColor || '#0f1115');
 
-      // ⬇️ 라인별 컬러(settings에서 채워졌을 때만 적용)
       if (s.screenTitleLine1Color) setVar('--title-line1-color', s.screenTitleLine1Color);
       if (s.screenTitleLine2Color) setVar('--title-line2-color', s.screenTitleLine2Color);
 
@@ -334,8 +356,37 @@
       updateCamera(0, 0, CAMERA.scale);
       updateMinimap();
 
+      evaluateTitleLayout();
       fitTitle();
       recalcTopbarHeight_();
+    }
+
+    /* ====== 제목 DOM & 레이아웃 ====== */
+    function renderTitleDOM(){
+      const { l1, l2 } = state.titleParts;
+      if (state.titleOneLine && l2){
+        $title.innerHTML = `
+          <div class="lineCombined">
+            <span class="p1">${escapeHtml(l1)}</span>
+            <span class="sep">·</span>
+            <span class="p2">${escapeHtml(l2)}</span>
+          </div>
+        `;
+      } else {
+        $title.innerHTML = `
+          <div class="line1">${escapeHtml(l1)}</div>
+          ${l2 ? `<div class="line2">${escapeHtml(l2)}</div>` : ''}
+        `;
+      }
+    }
+
+    function evaluateTitleLayout(){
+      const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+      const wantOne = (vw >= TITLE_ONE_LINE_BREAKPOINT) && !!state.titleParts.l2.trim();
+      if (wantOne !== state.titleOneLine){
+        state.titleOneLine = wantOne;
+        renderTitleDOM();
+      }
     }
 
     /* ====== UI ====== */
@@ -507,12 +558,11 @@
       }
     }
 
-    /* ====== Title auto-fit (넓은 화면에서 크게, 넘치면 자동 축소) ====== */
+    /* ====== Title auto-fit ====== */
     function fitTitle(){
       const container = $title;
       if (!container) return;
 
-      // 화면 폭에 따른 기본 크기 상향 (넓을수록 크게)
       const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
       let basePx =
         vw >= 1440 ? 34 :
@@ -520,22 +570,24 @@
         vw >= 900  ? 24 : 18;
 
       const minPx  = 12;
-
-      // 기본값으로 리셋 후 측정
       $root.style.setProperty('--title-font-px', basePx + 'px');
 
-      // 다음 프레임에서 실제 크기 측정(레이아웃 반영 보장)
       requestAnimationFrame(()=>{
-        const w = Math.max(0, container.clientWidth - 2); // 여유치 2px
-        const l1 = container.querySelector('.line1');
-        const l2 = container.querySelector('.line2');
-
-        let scale = 1;
-        if (l1 && l1.scrollWidth > w) scale = Math.min(scale, w / l1.scrollWidth);
-        if (l2 && l2.scrollWidth > w) scale = Math.min(scale, w / l2.scrollWidth);
-
-        const px = Math.max(minPx, Math.floor(basePx * Math.min(1, scale)));
-        $root.style.setProperty('--title-font-px', px + 'px');
+        const w = Math.max(0, container.clientWidth - 2);
+        const combined = container.querySelector('.lineCombined');
+        if (combined){
+          const scale = Math.min(1, w / Math.max(1, combined.scrollWidth));
+          const px = Math.max(minPx, Math.floor(basePx * scale));
+          $root.style.setProperty('--title-font-px', px + 'px');
+        } else {
+          const l1 = container.querySelector('.line1');
+          const l2 = container.querySelector('.line2');
+          let scale = 1;
+          if (l1 && l1.scrollWidth > w) scale = Math.min(scale, w / l1.scrollWidth);
+          if (l2 && l2.scrollWidth > w) scale = Math.min(scale, w / l2.scrollWidth);
+          const px = Math.max(minPx, Math.floor(basePx * Math.min(1, scale)));
+          $root.style.setProperty('--title-font-px', px + 'px');
+        }
       });
     }
 
@@ -690,7 +742,6 @@
     const pinch = { active:false, lastDist:0, lastMid:{x:0,y:0} };
 
     function onPointerDown(ev){
-      // 모바일: 더블탭 새 메모
       if (ev.pointerType === 'touch' && !ev.target.closest('input,textarea,button,select,.panel,.dragHandle,.ctrlBar,.fsDial')){
         const now = performance.now();
         const isNear = Math.hypot(ev.clientX - state.lastTapPos.x, ev.clientY - state.lastTapPos.y) < 30;
@@ -710,7 +761,6 @@
 
       if (ev.target.closest('input, textarea, button, select, .panel, .dragHandle, .ctrlBar, .fsDial')) return;
 
-      // 데스크톱: 가운데(휠) 버튼으로만 드래그 허용
       if (ev.pointerType === 'mouse' && ev.button !== 1) return;
 
       stopInertia();
