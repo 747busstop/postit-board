@@ -5,14 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>온라인 포스트잇 게시판</title>
   <style>
+    /* ⬇️ 요청하신 라인1 전용 폰트 */
+    @font-face {
+      font-family: 'April16Promise';
+      src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404-2@1.0/April16th-Promise.woff2') format('woff2');
+      font-weight: 400;
+      font-display: swap;
+    }
+
     :root{
       --bg:#0f1115; --text:#e8eaed; --title-color:#ffffff; --title-align:center;
       --postit-image:none; --board-image:none; --note-size: 280px; --panel-width: 320px;
       --cam-x: 0px; --cam-y: 0px; --scale: 1; --topbar-h: 56px;
-      /* 제목 자동 피팅 기본 크기 + 폰트 패밀리 + 라인별 색상 */
+      /* 제목 자동 피팅 기본 크기 + (라인2/기본) 폰트 패밀리 + 라인별 색상 */
       --title-font-px: 18px;
-      --title-font-family: inherit;
-      --title-line1-color: #7ab63e;
+      --title-font-family: inherit;      /* 라인2/기본 */
+      --title-line1-color: unset;
       --title-line2-color: unset;
     }
     *{ box-sizing:border-box; }
@@ -37,27 +45,26 @@
     .title .line1,
     .title .line2{
       font-size: var(--title-font-px);
-      font-family: var(--title-font-family);
       line-height:1.1;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .title .line1{ color: var(--title-line1-color, inherit); }
-    .title .line2{ color: var(--title-line2-color, inherit); margin-top:2px; font-weight:600; opacity:.95; }
+    /* 라인1은 April16Promise, 라인2는 변수(기본/커스텀) */
+    .title .line1{ color: var(--title-line1-color, inherit); font-family: 'April16Promise', var(--title-font-family); }
+    .title .line2{ color: var(--title-line2-color, inherit); font-family: var(--title-font-family); margin-top:2px; font-weight:600; opacity:.95; }
 
     /* 한 줄 결합 모드 */
     .title .lineCombined{
       font-size: var(--title-font-px);
-      font-family: var(--title-font-family);
       line-height:1.1;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .title .lineCombined .p1{ color: var(--title-line1-color, inherit); font-weight:700; }
-    .title .lineCombined .p2{ color: var(--title-line2-color, inherit); font-weight:600; opacity:.95; }
-    .title .lineCombined .sep{ opacity:.85; margin: 0 .4ch; }
+    .title .lineCombined .p1{ color: var(--title-line1-color, inherit); font-weight:700; font-family: 'April16Promise', var(--title-font-family); }
+    .title .lineCombined .p2{ color: var(--title-line2-color, inherit); font-weight:600; opacity:.95; font-family: var(--title-font-family); }
+    /* ⬆️ 중간 점(·)은 제거했으므로 .sep 규칙 불필요 */
 
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
     .right-actions{ display:flex; gap:8px; justify-self:end; }
@@ -194,7 +201,8 @@
 
   <script>
     /* ==========================================================
-     * 🔧 GitHub 설정: 제목 전용 커스텀 폰트
+     * 🔧 GitHub 설정: 제목(기본/라인2) 전용 폰트
+     *    라인1은 CSS에서 April16Promise로 직접 설정됩니다.
      * ========================================================== */
     const GITHUB_SETTINGS = {
       titleFont: {
@@ -206,7 +214,7 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbxfET44gELBKlEk_xb8wp45dHwDSc0J5wX0IEbdCFwcXMKuYdWA5yD0LfxrZ9Q-QCdqog/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbz2Te0tgwLhewhYCF95JAAP6xdY4mlZDM_DvpKi5j2KOZCgy40jAvxqZF1ZQYcXuQgqbg/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -246,13 +254,13 @@
 
     /* ====== Boot ====== */
     (async function init(){
-      applyGithubTitleFont_();
+      applyGithubTitleFont_();  // 라인2/기본 폰트 주입
       recalcTopbarHeight_();
       await bootstrap();
       bindUI();
       renderAll();
-      evaluateTitleLayout();   // ⬅️ 폭에 따라 1줄/2줄 결정
-      fitTitle();              // ⬅️ 자동 피팅
+      evaluateTitleLayout();   // 폭에 따라 1줄/2줄 결정
+      fitTitle();              // 자동 피팅
       focusWorldPoint({ x: 5000, y: 5000 });
       updateTopbarActions();
       window.addEventListener('resize', onResize);
@@ -267,7 +275,7 @@
       }
     })();
 
-    /* === GitHub 폰트 적용 === */
+    /* === (라인2/기본) 폰트 적용 === */
     function applyGithubTitleFont_(){
       const cfg = GITHUB_SETTINGS && GITHUB_SETTINGS.titleFont;
       if (!cfg || !cfg.enabled || !cfg.name || !cfg.url) return;
@@ -365,11 +373,11 @@
     function renderTitleDOM(){
       const { l1, l2 } = state.titleParts;
       if (state.titleOneLine && l2){
+        // ⬇️ 요청사항: 중간 점(·) 제거, 공백으로 연결
         $title.innerHTML = `
           <div class="lineCombined">
             <span class="p1">${escapeHtml(l1)}</span>
-            <span class="sep">·</span>
-            <span class="p2">${escapeHtml(l2)}</span>
+            <span class="p2"> ${escapeHtml(l2)}</span>
           </div>
         `;
       } else {
