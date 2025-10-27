@@ -33,10 +33,13 @@
       color:var(--title-color); font-weight:800; font-size:18px; letter-spacing:.2px;
       font-family: var(--title-font), "Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
-    .subtitle{ margin-top:2px; font-weight:700; font-size:12px; letter-spacing:.1px; }
+    .subtitle{
+      margin-top:2px; font-weight:700; font-size:12px; letter-spacing:.1px;
+      font-family: var(--title-font), "Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif; /* ⬅️ 제목폰트 공유 */
+    }
     .subtitle .l1{ color:var(--subtitle-color-1); }
     .subtitle .l2{ color:var(--subtitle-color-2); }
-
+    
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
     .right-actions{ display:flex; gap:8px; justify-self:end; }
     .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; }
@@ -184,7 +187,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbwfjSRGh8MD2hGSI0sER-iobspJH7gCKnGWQuUydVey6wIZN0hwd8EmzbgXkkJzSuyA2g/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbwGce7grFFxIXO9WukrD6C8bai0qjbLxFAF70s5I1tCEMo5UMUB_Hwpip_1xeiSULaoYQ/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -258,13 +261,24 @@
       setVar('--title-align', s.titleAlign || 'center');
       setVar('--bg', s.bgColor || '#0f1115');
 
-      // ⬇️ 제목 전용 폰트 및 웹폰트 URL(옵션)
+      // ⬇️ 제목 전용 폰트 및 외부 CSS URL(복수 지원)
       setVar('--title-font', (s.screenTitleFont || 'inherit'));
       if (s.screenTitleFontUrl) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = s.screenTitleFontUrl;
-        document.head.appendChild(link);
+        (s.screenTitleFontUrl.split(',') || [])
+          .map(u => u.trim())
+          .filter(Boolean)
+          .forEach(u => {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = u;
+            document.head.appendChild(link);
+          });
+      }
+      // ⬇️ 시트에 직접 적은 CSS(@font-face 등)을 그대로 주입
+      if (s.screenTitleFontCss) {
+        const style = document.createElement('style');
+        style.textContent = s.screenTitleFontCss;
+        document.head.appendChild(style);
       }
 
       // ⬇️ 부제(두 줄) + 색상
