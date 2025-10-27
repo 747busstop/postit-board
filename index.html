@@ -21,14 +21,18 @@
     .app{ display:grid; grid-template-rows:auto auto 1fr; height:100%; }
     .main{ position:relative; height:100%; min-height:0; overflow:hidden; }
 
+    /* ⬇️ 상단 바 배경색을 툴바와 동일(#0b0e13ee)로 통일 */
     .topbar{
       position:relative; display:grid; grid-template-columns:auto 1fr auto;
       align-items:center; gap:8px; padding:10px 12px;
-      border-bottom:1px solid #20242b; background:#0b0e13aa; backdrop-filter: blur(6px);
+      border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(6px);
     }
+
     .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; letter-spacing:.2px; }
+    /* ⬇️ 두 줄 제목 크기 동일(18px) */
     .title .line1{ font-size:18px; line-height:1.1; }
-    .title .line2{ margin-top:2px; font-size:13px; font-weight:600; opacity:.9; }
+    .title .line2{ margin-top:2px; font-size:18px; line-height:1.1; font-weight:600; opacity:.9; }
+
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
     .right-actions{ display:flex; gap:8px; justify-self:end; }
     .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; }
@@ -166,7 +170,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbygsm4yQssrMhuLLXlwBFy7DZf4wGQd_37OdEDS1ab78XYXvG0yvN0Zt59vSeVw4xtjug/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbwPg67gGxbiBLqapl0CXpysxd-p9tpIKKGr9hLrZTzq6kBYwXntwFiM-_3p9YX3TIfN8Q/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
