@@ -9,8 +9,9 @@
       --bg:#0f1115; --text:#e8eaed; --title-color:#ffffff; --title-align:center;
       --postit-image:none; --board-image:none; --note-size: 280px; --panel-width: 320px;
       --cam-x: 0px; --cam-y: 0px; --scale: 1; --topbar-h: 56px;
-      /* ⬇️ 제목 자동 피팅용 기본 폰트 크기 변수 */
+      /* 제목 자동 피팅 기본 크기 + 폰트 패밀리 변수(깃허브에서 JS로 설정) */
       --title-font-px: 18px;
+      --title-font-family: inherit;
     }
     *{ box-sizing:border-box; }
     html,body{
@@ -23,7 +24,6 @@
     .app{ display:grid; grid-template-rows:auto auto 1fr; height:100%; }
     .main{ position:relative; height:100%; min-height:0; overflow:hidden; }
 
-    /* ⬇️ 상단 바 배경색을 툴바와 동일 */
     .topbar{
       position:relative; display:grid; grid-template-columns:auto 1fr auto;
       align-items:center; gap:8px; padding:10px 12px;
@@ -31,10 +31,10 @@
     }
 
     .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; letter-spacing:.2px; overflow:hidden; }
-    /* ⬇️ 두 줄 제목 크기 동일 + 줄바꿈 방지 + 넘침시 말줄임 */
     .title .line1,
     .title .line2{
       font-size: var(--title-font-px);
+      font-family: var(--title-font-family);
       line-height:1.1;
       white-space: nowrap;
       overflow: hidden;
@@ -178,8 +178,22 @@
   </aside>
 
   <script>
+    /* ==========================================================
+     * 🔧 GitHub 설정: 제목 전용 커스텀 폰트
+     * - 필요 시 name / url / weight만 교체하면 됩니다.
+     * - 적용을 끄려면 enabled:false 로 설정하세요.
+     * ========================================================== */
+    const GITHUB_SETTINGS = {
+      titleFont: {
+        enabled: true,
+        name: 'April16thLife',
+        url: 'https://cdn.jsdelivr.net/gh/projectnoonnu/2404-2@1.0/April16th-Life.woff2',
+        weight: '400'
+      }
+    };
+
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbyK8YaotMsvzYjkDFcK0XRMzKSj8k7SC2fgXXDqQH3Z0SUIPOD6Vizi-W5mFXMR2L7Ckw/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbyea16O1R788muJwZbaXd9jLAROE4c7AnVy6UgbntSxZRgngLURQXuS0Cs09TVHbC2aXQ/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -215,11 +229,12 @@
 
     /* ====== Boot ====== */
     (async function init(){
+      applyGithubTitleFont_();     // ⬅️ 폰트 주입 & 변수 설정
       recalcTopbarHeight_();
       await bootstrap();
       bindUI();
       renderAll();
-      fitTitle();            // ⬅️ 제목 자동 피팅
+      fitTitle();                  // ⬅️ 제목 자동 피팅
       focusWorldPoint({ x: 5000, y: 5000 });
       updateTopbarActions();
       window.addEventListener('resize', onResize);
@@ -230,6 +245,40 @@
         ro.observe($title);
       }
     })();
+
+    /* === GitHub 폰트 적용 === */
+    function applyGithubTitleFont_(){
+      const cfg = GITHUB_SETTINGS && GITHUB_SETTINGS.titleFont;
+      if (!cfg || !cfg.enabled || !cfg.name || !cfg.url) return;
+
+      // @font-face 동적 주입
+      const style = document.createElement('style');
+      style.textContent = `
+        @font-face{
+          font-family: '${cssEscape_(cfg.name)}';
+          src: url('${cssEscape_(cfg.url)}') format('woff2');
+          font-weight: ${cfg.weight ? cssEscape_(cfg.weight) : '400'};
+          font-style: normal;
+          font-display: swap;
+        }
+      `;
+      document.head.appendChild(style);
+
+      // 제목 전용 폰트 변수 설정
+      setVar('--title-font-family', `'${cfg.name}'`);
+
+      // 폰트 로드 후 제목 리피팅
+      if (document.fonts && document.fonts.load){
+        // weight가 문자열일 수 있으므로 기본 400 사용
+        const w = parseInt(cfg.weight, 10) || 400;
+        document.fonts.load(`${w} 18px '${cfg.name}'`).then(()=>{
+          fitTitle();
+          recalcTopbarHeight_();
+        }).catch(()=>{ /* 무시 */ });
+      }
+    }
+
+    function cssEscape_(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
     function onResize(){
       fitTitle();
