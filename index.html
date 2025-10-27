@@ -7,6 +7,7 @@
   <style>
     :root{
       --bg:#0f1115; --text:#e8eaed; --title-color:#ffffff; --title-align:center;
+      --title-font: inherit; /* ✅ 타이틀 폰트 변수 */
       --postit-image:none; --board-image:none; --note-size: 280px; --panel-width: 320px;
       --cam-x: 0px; --cam-y: 0px; --scale: 1; --topbar-h: 56px;
     }
@@ -26,7 +27,15 @@
       align-items:center; gap:8px; padding:10px 12px;
       border-bottom:1px solid #20242b; background:#0b0e13aa; backdrop-filter: blur(6px);
     }
-    .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; font-size:18px; letter-spacing:.2px; }
+    /* ✅ 타이틀 2줄 구조 + 커스텀 폰트 */
+    .title{
+      text-align:var(--title-align); color:var(--title-color);
+      font-family: var(--title-font);
+      letter-spacing:.2px;
+      display:block;
+    }
+    .title .l1{ font-weight:800; font-size:18px; line-height:1.15; }
+    .title .l2{ font-weight:700; font-size:16px; line-height:1.15; opacity:.95; }
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
     .right-actions{ display:flex; gap:8px; justify-self:end; }
     .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; }
@@ -126,7 +135,11 @@
   <div class="app">
     <div class="topbar" id="topbar">
       <button id="btnPanel" class="iconbtn" title="리스트" aria-label="리스트">🗂️</button>
-      <div class="title" id="title">온라인 포스트잇 게시판</div>
+      <!-- ✅ 2줄 타이틀 영역 -->
+      <div class="title" id="title">
+        <div id="titleL1" class="l1">온라인 포스트잇 게시판</div>
+        <div id="titleL2" class="l2" style="display:none;"></div>
+      </div>
       <div class="right-actions">
         <button id="btnNew" class="btn primary" title="새 메모" aria-label="새 메모">＋</button>
         <button id="btnGo"  class="btn" style="display:none;" title="작성중으로 이동" aria-label="작성중으로 이동">🧭</button>
@@ -166,7 +179,7 @@
 
   <script>
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbyTwm-vDj0hCGixnp2ULpzuNLC3wj6k1kFV_PhhNBnFiCRjLl1MJkujhdXBEi2cVTavZQ/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbwVjPs2B2BZgJ2JuiZkKetC8SP4FWadYynW4c-IQ_1KeieqlMxPMGx5SPXs4ZuqQq-aKw/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -181,6 +194,8 @@
 
     const $root = document.documentElement;
     const $title = document.getElementById('title');
+    const $titleL1 = document.getElementById('titleL1'); // ✅
+    const $titleL2 = document.getElementById('titleL2'); // ✅
     const $panel = document.getElementById('panel');
     const $topbar = document.getElementById('topbar');
     const $listBody  = document.getElementById('list');
@@ -227,11 +242,18 @@
       const j = await (await fetch(url, {mode:'cors'})).json();
       if (!j.ok) throw new Error('bootstrap failed');
 
-      const s = j.settings.values;
       state.settings = j.settings;
+      const s = j.settings.values;
 
-      $title.textContent = toStr(s.screenTitle || '온라인 포스트잇 게시판');
-      document.title = toStr(s.pageTitle || $title.textContent);
+      // ✅ 타이틀 텍스트(2줄) + 페이지 타이틀
+      const l1 = toStr(s.screenTitleLine1 || '') || toStr(s.screenTitle || '온라인 포스트잇 게시판');
+      const l2 = toStr(s.screenTitleLine2 || '');
+      $titleL1.textContent = l1;
+      $titleL2.textContent = l2;
+      $titleL2.style.display = l2 ? '' : 'none';
+      document.title = toStr(s.pageTitle || (l2 ? `${l1} · ${l2}` : l1));
+
+      // 정렬/색상/배경 등
       setVar('--title-align', s.titleAlign || 'center');
       setVar('--bg', s.bgColor || '#0f1115');
 
@@ -247,6 +269,23 @@
       if (j.settings.assets && j.settings.assets.bg) setVar('--board-image', `url(${j.settings.assets.bg})`);
       if (j.settings.assets && j.settings.assets.postit) setVar('--postit-image', `url(${j.settings.assets.postit})`);
 
+      // ✅ 타이틀 폰트 woff2 주입
+      if (j.settings.assets && j.settings.assets.titleFontWoff2) {
+        const fam = toStr(s.titleFontFamily || 'TitleDisplay');
+        const style = document.createElement('style');
+        style.id = 'titleFontFace';
+        style.textContent =
+          `@font-face{font-family:'${fam}';src:url(${j.settings.assets.titleFontWoff2}) format('woff2');font-display:swap;}`;
+        document.head.appendChild(style);
+        setVar('--title-font', `'${fam}', "Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif`);
+        // 폰트 로딩 후 높이 재계산
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(()=>{ recalcTopbarHeight_(); });
+        }
+      } else {
+        setVar('--title-font', `"Noto Sans KR", system-ui, -apple-system, Segoe UI, Roboto, sans-serif`);
+      }
+
       const dock = (s.panelDock || 'left');
       state.panelDock = dock;
       $panel.classList.toggle('right', dock === 'right');
@@ -259,6 +298,7 @@
 
       updateCamera(0, 0, CAMERA.scale);
       updateMinimap();
+      recalcTopbarHeight_(); // ✅ 텍스트 반영 후 즉시 재계산
     }
 
     /* ====== UI ====== */
