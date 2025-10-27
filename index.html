@@ -9,9 +9,11 @@
       --bg:#0f1115; --text:#e8eaed; --title-color:#ffffff; --title-align:center;
       --postit-image:none; --board-image:none; --note-size: 280px; --panel-width: 320px;
       --cam-x: 0px; --cam-y: 0px; --scale: 1; --topbar-h: 56px;
-      /* 제목 자동 피팅 기본 크기 + 폰트 패밀리 변수(깃허브에서 JS로 설정) */
+      /* 제목 자동 피팅 기본 크기 + 폰트 패밀리 + 라인별 색상 */
       --title-font-px: 18px;
       --title-font-family: inherit;
+      --title-line1-color: unset;   /* ⬅️ settings로 지정 시 덮어씀 */
+      --title-line2-color: unset;   /* ⬅️ settings로 지정 시 덮어씀 */
     }
     *{ box-sizing:border-box; }
     html,body{
@@ -36,11 +38,13 @@
       font-size: var(--title-font-px);
       font-family: var(--title-font-family);
       line-height:1.1;
-      white-space: nowrap;
+      white-space: nowrap;       /* ⬅️ 한 줄 고정 */
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .title .line2{ margin-top:2px; font-weight:600; opacity:.9; }
+    /* 라인별 색상: 미지정 시 타이틀 기본색을 상속 */
+    .title .line1{ color: var(--title-line1-color, inherit); }
+    .title .line2{ color: var(--title-line2-color, inherit); margin-top:2px; font-weight:600; opacity:.95; }
 
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
     .right-actions{ display:flex; gap:8px; justify-self:end; }
@@ -180,8 +184,6 @@
   <script>
     /* ==========================================================
      * 🔧 GitHub 설정: 제목 전용 커스텀 폰트
-     * - 필요 시 name / url / weight만 교체하면 됩니다.
-     * - 적용을 끄려면 enabled:false 로 설정하세요.
      * ========================================================== */
     const GITHUB_SETTINGS = {
       titleFont: {
@@ -193,7 +195,7 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbyea16O1R788muJwZbaXd9jLAROE4c7AnVy6UgbntSxZRgngLURQXuS0Cs09TVHbC2aXQ/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbxM5reJ7Ppr5RU1jA_mHFktUJUllBNaTZ4PqqTqJfE62P_EnTyNaV8v_AHVv-rGP0kK/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -239,7 +241,6 @@
       updateTopbarActions();
       window.addEventListener('resize', onResize);
 
-      // 컨테이너 크기 변화 대응(모바일 회전 등)
       if (window.ResizeObserver){
         const ro = new ResizeObserver(()=>{ fitTitle(); recalcTopbarHeight_(); });
         ro.observe($title);
@@ -251,7 +252,6 @@
       const cfg = GITHUB_SETTINGS && GITHUB_SETTINGS.titleFont;
       if (!cfg || !cfg.enabled || !cfg.name || !cfg.url) return;
 
-      // @font-face 동적 주입
       const style = document.createElement('style');
       style.textContent = `
         @font-face{
@@ -263,18 +263,14 @@
         }
       `;
       document.head.appendChild(style);
-
-      // 제목 전용 폰트 변수 설정
       setVar('--title-font-family', `'${cfg.name}'`);
 
-      // 폰트 로드 후 제목 리피팅
       if (document.fonts && document.fonts.load){
-        // weight가 문자열일 수 있으므로 기본 400 사용
         const w = parseInt(cfg.weight, 10) || 400;
         document.fonts.load(`${w} 18px '${cfg.name}'`).then(()=>{
           fitTitle();
           recalcTopbarHeight_();
-        }).catch(()=>{ /* 무시 */ });
+        }).catch(()=>{});
       }
     }
 
@@ -300,7 +296,7 @@
       const s = j.settings.values;
       state.settings = j.settings;
 
-      // 두 줄 제목 적용 (line1/line2). legacy screenTitle도 자동 대응.
+      // 두 줄 제목 적용
       const line1 = toStr(s.screenTitleLine1 || s.screenTitle || '온라인 포스트잇 게시판');
       const line2 = toStr(s.screenTitleLine2 || '');
       $title.innerHTML = `<div class="line1">${escapeHtml(line1)}</div>${line2 ? `<div class="line2">${escapeHtml(line2)}</div>` : ''}`;
@@ -308,6 +304,10 @@
       document.title = toStr(s.pageTitle || line1);
       setVar('--title-align', s.titleAlign || 'center');
       setVar('--bg', s.bgColor || '#0f1115');
+
+      // ⬇️ 라인별 컬러(settings에서 채워졌을 때만 적용)
+      if (s.screenTitleLine1Color) setVar('--title-line1-color', s.screenTitleLine1Color);
+      if (s.screenTitleLine2Color) setVar('--title-line2-color', s.screenTitleLine2Color);
 
       const ns = parseInt(s.noteSizePx || '280', 10);
       NOTE.W = NOTE.H = ns; setVar('--note-size', ns+'px');
@@ -334,7 +334,6 @@
       updateCamera(0, 0, CAMERA.scale);
       updateMinimap();
 
-      // 타이틀 피팅은 내용 세팅 후 실행
       fitTitle();
       recalcTopbarHeight_();
     }
@@ -508,13 +507,20 @@
       }
     }
 
-    /* ====== Title auto-fit (두 줄 동일 크기, 컨테이너 폭에 맞춰 축소) ====== */
+    /* ====== Title auto-fit (넓은 화면에서 크게, 넘치면 자동 축소) ====== */
     function fitTitle(){
       const container = $title;
       if (!container) return;
 
-      const basePx = 18;       // 기본 폰트 px
-      const minPx  = 12;       // 최소 폰트 px
+      // 화면 폭에 따른 기본 크기 상향 (넓을수록 크게)
+      const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+      let basePx =
+        vw >= 1440 ? 34 :
+        vw >= 1200 ? 30 :
+        vw >= 900  ? 24 : 18;
+
+      const minPx  = 12;
+
       // 기본값으로 리셋 후 측정
       $root.style.setProperty('--title-font-px', basePx + 'px');
 
@@ -704,7 +710,7 @@
 
       if (ev.target.closest('input, textarea, button, select, .panel, .dragHandle, .ctrlBar, .fsDial')) return;
 
-      // 데스크톱: 가운데(휠) 버튼으로만 드래그 허용 + 손바닥 커서
+      // 데스크톱: 가운데(휠) 버튼으로만 드래그 허용
       if (ev.pointerType === 'mouse' && ev.button !== 1) return;
 
       stopInertia();
@@ -870,7 +876,6 @@
         a.download = filename || 'capture.png';
         a.click();
       }catch(e){
-        // 폴백
         window.print();
       }
     }
