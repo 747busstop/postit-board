@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>온라인 포스트잇 게시판</title>
   <style>
-    /* ⬇️ 요청하신 라인1 전용 폰트 */
+    /* 라인1 전용 폰트 */
     @font-face {
       font-family: 'April16Promise';
       src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404-2@1.0/April16th-Promise.woff2') format('woff2');
@@ -22,6 +22,8 @@
       --title-font-family: inherit;      /* 라인2/기본 */
       --title-line1-color: unset;
       --title-line2-color: unset;
+      /* 온보딩 색상 */
+      --ob-bg:#0b0e13f2; --ob-panel:#111723; --ob-border:#263041; --ob-accent:#2563eb; --ob-muted:#9fb2c7;
     }
     *{ box-sizing:border-box; }
     html,body{
@@ -50,11 +52,10 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    /* 라인1은 April16Promise, 라인2는 변수(기본/커스텀) */
     .title .line1{ color: var(--title-line1-color, inherit); font-family: 'April16Promise', var(--title-font-family); }
     .title .line2{ color: var(--title-line2-color, inherit); font-family: var(--title-font-family); margin-top:2px; font-weight:600; opacity:.95; }
 
-    /* 한 줄 결합 모드 */
+    /* 한 줄 결합 모드 (중간 점 제거) */
     .title .lineCombined{
       font-size: var(--title-font-px);
       line-height:1.1;
@@ -64,7 +65,6 @@
     }
     .title .lineCombined .p1{ color: var(--title-line1-color, inherit); font-weight:700; font-family: 'April16Promise', var(--title-font-family); }
     .title .lineCombined .p2{ color: var(--title-line2-color, inherit); font-weight:600; opacity:.95; font-family: var(--title-font-family); }
-    /* ⬆️ 중간 점(·)은 제거했으므로 .sep 규칙 불필요 */
 
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
     .right-actions{ display:flex; gap:8px; justify-self:end; }
@@ -94,10 +94,6 @@
     .table th{ color:#b7c2cf; font-weight:600; position:sticky; top:0; background:#0b0e13f2; }
     .table tr{ cursor:pointer; }
     .wrap{ display:block; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
-
-    .btns{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
-    .table .btn{ padding:6px 8px; min-width:36px; min-height:30px; }
-    .sep{ opacity:.6; }
 
     .board{
       position:absolute; inset:0; background-image: var(--board-image);
@@ -154,11 +150,38 @@
       box-shadow:0 6px 16px rgba(0,0,0,.25);
     }
     .minimap canvas{ width:100%; height:100%; display:block; }
+
+    /* ===== 온보딩 오버레이 ===== */
+    .onboard{ position:fixed; inset:0; z-index:3000; display:none; }
+    .onboard.open{ display:block; }
+    .onboard .mask{ position:absolute; inset:0; background:rgba(0,0,0,.55); backdrop-filter: blur(2px); }
+    .onboard .panel{
+      position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+      width:min(920px, 96vw); max-height: min(86vh, 820px); overflow:hidden;
+      background:var(--ob-bg); border:1px solid var(--ob-border); border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.45);
+      display:grid; grid-template-rows:auto auto 1fr auto;
+    }
+    .onboard .hd{ padding:16px 20px; border-bottom:1px solid var(--ob-border); font-weight:800; letter-spacing:.2px; }
+    .onboard .tabs{ display:flex; gap:8px; padding:10px 12px; border-bottom:1px solid var(--ob-border); }
+    .onboard .tabbtn{
+      padding:8px 12px; border-radius:10px; border:1px solid var(--ob-border); background:var(--ob-panel); color:#d9e3f0;
+    }
+    .onboard .tabbtn.active{ outline:2px solid var(--ob-accent); }
+    .onboard .body{ padding:16px 18px; overflow:auto; }
+    .onboard .body h4{ margin:0 0 10px; font-size:16px; color:#dfe8f5; }
+    .onboard .body p{ margin:8px 0; color:#cbd7e6; }
+    .onboard .body .muted{ color:var(--ob-muted); font-size:13px; }
+    .onboard .ft{ display:flex; gap:8px; justify-content:space-between; padding:12px 16px; border-top:1px solid var(--ob-border); background:#0b0e13f2; }
+    .onboard .grp{ display:flex; gap:8px; align-items:center; }
+    .onboard .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:10px 14px; border-radius:12px; }
+    .onboard .btn.primary{ background:var(--ob-accent); border-color:var(--ob-accent); color:#fff; font-weight:700; }
+    .onboard pre{ white-space:pre-wrap; word-break:break-word; background:#0e1624; border:1px solid #1f2a3e; padding:12px 14px; border-radius:10px; color:#dfe8f5; }
+    .sr-only{ position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); border:0; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 </head>
 <body>
-  <div class="app">
+  <div class="app" aria-hidden="true">
     <div class="topbar" id="topbar">
       <button id="btnPanel" class="iconbtn" title="리스트" aria-label="리스트">🗂️</button>
       <div class="title" id="title"><!-- JS에서 채움 --></div>
@@ -189,20 +212,34 @@
     </div>
   </div>
 
-  <aside id="panel" class="panel">
-    <h3>승인된 메모</h3>
-    <table class="table">
-      <thead>
-        <tr><th class="name">닉네임</th><th class="text">내용</th><th class="act">작업</th></tr>
-      </thead>
-      <tbody id="list"></tbody>
-    </table>
-  </aside>
+  <!-- ===== 온보딩 오버레이 (접속 시 항상 표시) ===== -->
+  <div id="onboard" class="onboard" role="dialog" aria-modal="true" aria-labelledby="obTitle">
+    <div class="mask"></div>
+    <div class="panel">
+      <div class="hd" id="obTitle">사용 안내</div>
+      <div class="tabs" role="tablist">
+        <button id="tabA" class="tabbtn active" role="tab" aria-selected="true" aria-controls="tabPanelA">설명 A</button>
+        <button id="tabB" class="tabbtn" role="tab" aria-selected="false" aria-controls="tabPanelB">설명 B</button>
+      </div>
+      <div class="body" id="obBody">
+        <!-- JS에서 탭 패널을 채움 -->
+      </div>
+      <div class="ft">
+        <div class="grp">
+          <button id="copyB" class="btn" title="설명 B 내용 복사">설명 B 복사</button>
+          <span class="muted" id="copyHint" aria-live="polite"></span>
+        </div>
+        <div class="grp">
+          <button id="obStart" class="btn primary">확인하고 시작하기</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     /* ==========================================================
-     * 🔧 GitHub 설정: 제목(기본/라인2) 전용 폰트
-     *    라인1은 CSS에서 April16Promise로 직접 설정됩니다.
+     * GitHub 설정: 제목(기본/라인2) 폰트
+     *  (라인1은 CSS의 April16Promise 사용)
      * ========================================================== */
     const GITHUB_SETTINGS = {
       titleFont: {
@@ -214,7 +251,7 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbz2Te0tgwLhewhYCF95JAAP6xdY4mlZDM_DvpKi5j2KOZCgy40jAvxqZF1ZQYcXuQgqbg/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbx1xyfQ0B-9KD8p5KlaQP5KiDX68Wuc5s_OTtpxX7DPQJk729g1byV3YCi6iCyhgJ0cfA/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -223,12 +260,38 @@
     // 제목 한 줄 전환 임계값(px)
     const TITLE_ONE_LINE_BREAKPOINT = 1200;
 
+    // 온보딩 기본 텍스트 (settings 누락 시 사용)
+    const DEFAULT_ONBOARD = {
+      showAlways: true,
+      title: '사용 안내',
+      aTitle: '설명 A — 포스트잇 작성 및 제출법',
+      aText: [
+        '① 새 메모(＋) 버튼을 누르거나 보드를 더블클릭합니다.',
+        '② 노란 메모가 뜨면 닉네임, 내용을 입력합니다.',
+        '③ 메모 상단의 십자 손잡이를 드래그하여 위치를 옮길 수 있습니다.',
+        '④ 우측 다이얼로 글자 크기를 조절합니다 (8~36pt).',
+        '⑤ 제출(✓)을 누르면 “제출됨(승인 대기)” 상태가 되며, 제출 후 수정/삭제는 불가합니다.',
+        '⑥ 승인이 되면 누구나 보이는 메모가 됩니다. 목록에서 🧭로 위치로 이동, 📷로 캡처 가능.'
+      ].join('\n'),
+      bTitle: '설명 B — 안내문',
+      bText: [
+        '오송참사는 충북도민 모두의 생명과 안전을 묻는 사건입니다.',
+        '유가족과 충북도는 도청 서문 광장 추모조형물 설치에 합의했지만,',
+        '충북도의회는 도민의 의견, 공론화 부족을 이유로 추모조형물 예산 5천만 원을',
+        '상임위·예결위·본회의에서 연달아 전액 삭감했습니다.',
+        '도의회는 오송역 버스정류장 앞 2,000개의 추모쪽지를 잊으셨습니까.',
+        '기억을 거부하는자 누구입니까. 도민은 기억합니다.',
+        '예산은 삭감할수 있을 지언정 도민의 기억은 삭감할 수 없습니다.'
+      ].join('\n')
+    };
+
     /* ====== State ====== */
     const state = {
       owner: getOrSetOwner_(), settings: null, notes: [],
       draft: loadDraft_(), panelOpen: false, panelDock: 'left', panPrev: null,
       zMap: {}, zCounters: { submitted:0, approved:0 }, lastTapTime: 0, lastTapPos: {x:0,y:0},
-      titleParts: { l1:'', l2:'' }, titleOneLine: false
+      titleParts: { l1:'', l2:'' }, titleOneLine: false,
+      onboard: { ...DEFAULT_ONBOARD }
     };
 
     const $root = document.documentElement;
@@ -248,19 +311,29 @@
     const $minimap = document.getElementById('minimap');
     const mm = { dragging:false };
 
+    // 온보딩 요소
+    const $onboard = document.getElementById('onboard');
+    const $tabA = document.getElementById('tabA');
+    const $tabB = document.getElementById('tabB');
+    const $obBody = document.getElementById('obBody');
+    const $obTitle = document.getElementById('obTitle');
+    const $copyB = document.getElementById('copyB');
+    const $copyHint = document.getElementById('copyHint');
+    const $obStart = document.getElementById('obStart');
+
     const inertia = { raf:0, vx:0, vy:0, damping:0.985 };
     const pan = { raf:0, dx:0, dy:0, lastVX:0, lastVY:0, lastT:0 };
     function stopInertia(){ if (inertia.raf){ cancelAnimationFrame(inertia.raf); inertia.raf=0; } inertia.vx=0; inertia.vy=0; }
 
     /* ====== Boot ====== */
     (async function init(){
-      applyGithubTitleFont_();  // 라인2/기본 폰트 주입
+      applyGithubTitleFont_();
       recalcTopbarHeight_();
       await bootstrap();
       bindUI();
       renderAll();
-      evaluateTitleLayout();   // 폭에 따라 1줄/2줄 결정
-      fitTitle();              // 자동 피팅
+      evaluateTitleLayout();
+      fitTitle();
       focusWorldPoint({ x: 5000, y: 5000 });
       updateTopbarActions();
       window.addEventListener('resize', onResize);
@@ -273,6 +346,9 @@
         });
         ro.observe($title);
       }
+
+      // ⬇️ 접속 시 온보딩 강제 표시
+      if (state.onboard.showAlways) openOnboarding_('A');
     })();
 
     /* === (라인2/기본) 폰트 적용 === */
@@ -326,11 +402,11 @@
       const s = j.settings.values;
       state.settings = j.settings;
 
-      // 제목 파트 저장
+      // 제목
       const line1 = toStr(s.screenTitleLine1 || s.screenTitle || '온라인 포스트잇 게시판');
       const line2 = toStr(s.screenTitleLine2 || '');
       state.titleParts = { l1: line1, l2: line2 };
-      renderTitleDOM(); // 현재 모드에 맞춰 DOM 구성
+      renderTitleDOM();
 
       document.title = toStr(s.pageTitle || line1);
       setVar('--title-align', s.titleAlign || 'center');
@@ -354,11 +430,9 @@
       const dock = (s.panelDock || 'left');
       state.panelDock = dock;
       $panel.classList.toggle('right', dock === 'right');
-
       setVar('--panel-width', (parseInt(s.panelWidthPx||'320',10)||320) + 'px');
 
       state.notes = (j.data || []).map(sanitizeNote);
-
       if (state.draft) saveDraft_(Object.assign({}, state.draft));
 
       updateCamera(0, 0, CAMERA.scale);
@@ -367,13 +441,23 @@
       evaluateTitleLayout();
       fitTitle();
       recalcTopbarHeight_();
+
+      // 온보딩 설정 반영
+      state.onboard = {
+        showAlways: String(s.onboardingShowAlways || 'Yes').toLowerCase() === 'yes',
+        title: toStr(s.onboardingTitle || DEFAULT_ONBOARD.title),
+        aTitle: toStr(s.onboardingATitle || DEFAULT_ONBOARD.aTitle),
+        aText: toStr(s.onboardingA || DEFAULT_ONBOARD.aText),
+        bTitle: toStr(s.onboardingBTitle || DEFAULT_ONBOARD.bTitle),
+        bText: toStr(s.onboardingB || DEFAULT_ONBOARD.bText)
+      };
     }
 
     /* ====== 제목 DOM & 레이아웃 ====== */
     function renderTitleDOM(){
       const { l1, l2 } = state.titleParts;
       if (state.titleOneLine && l2){
-        // ⬇️ 요청사항: 중간 점(·) 제거, 공백으로 연결
+        // 중간 점 제거, 공백으로 연결
         $title.innerHTML = `
           <div class="lineCombined">
             <span class="p1">${escapeHtml(l1)}</span>
@@ -438,11 +522,11 @@
         if (e.key === 'ArrowDown')  { CAMERA.y -= 80; setCamVars_(); }
       });
 
-      $miniWrap.addEventListener('pointerdown', (e) => { mm.dragging = true; goMinimap(e); e.preventDefault(); });
-      $miniWrap.addEventListener('pointermove', (e) => { if (mm.dragging) { goMinimap(e); e.preventDefault(); } });
-      const mmEnd = () => { mm.dragging = false; };
-      $miniWrap.addEventListener('pointerup', mmEnd);
-      $miniWrap.addEventListener('pointercancel', mmEnd);
+      // 온보딩 탭/버튼
+      $tabA.onclick = () => switchOnboardingTab_('A');
+      $tabB.onclick = () => switchOnboardingTab_('B');
+      $obStart.onclick = closeOnboarding_;
+      $copyB.onclick = copyBText_;
     }
 
     function togglePanel(){
@@ -935,6 +1019,51 @@
         a.click();
       }catch(e){
         window.print();
+      }
+    }
+
+    /* ====== 온보딩 ====== */
+    function openOnboarding_(tab){ 
+      $obTitle.textContent = state.onboard.title || '사용 안내';
+      $onboard.classList.add('open');
+      document.querySelector('.app').setAttribute('aria-hidden','true');
+      switchOnboardingTab_(tab || 'A');
+      $tabA.focus({preventScroll:true});
+    }
+    function closeOnboarding_(){
+      $onboard.classList.remove('open');
+      document.querySelector('.app').removeAttribute('aria-hidden');
+    }
+    function switchOnboardingTab_(tab){
+      const toA = (tab === 'A');
+      $tabA.classList.toggle('active', toA);
+      $tabB.classList.toggle('active', !toA);
+      $tabA.setAttribute('aria-selected', String(toA));
+      $tabB.setAttribute('aria-selected', String(!toA));
+      if (toA){
+        $obBody.innerHTML = `
+          <div id="tabPanelA" role="tabpanel" aria-labelledby="tabA">
+            <h4>${escapeHtml(state.onboard.aTitle)}</h4>
+            <pre>${escapeHtml(state.onboard.aText)}</pre>
+            <p class="muted">※ 제출 후에는 수정/삭제가 불가합니다.</p>
+          </div>`;
+      } else {
+        $obBody.innerHTML = `
+          <div id="tabPanelB" role="tabpanel" aria-labelledby="tabB">
+            <h4>${escapeHtml(state.onboard.bTitle)}</h4>
+            <pre id="bText">${escapeHtml(state.onboard.bText)}</pre>
+          </div>`;
+      }
+    }
+    async function copyBText_(){
+      const el = document.getElementById('bText');
+      if (!el) { $copyHint.textContent = '설명 B가 열려 있을 때만 복사할 수 있습니다.'; return; }
+      try{
+        await navigator.clipboard.writeText(el.textContent || '');
+        $copyHint.textContent = '복사됨';
+        setTimeout(()=> $copyHint.textContent = '', 1500);
+      } catch (e) {
+        $copyHint.textContent = '복사 권한을 허용해 주세요.';
       }
     }
 
