@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>기억을 거부하는자 누구입니까? 충북도민은 기억합니다.</title>
+  <title>온라인 포스트잇 게시판</title>
   <style>
     /* 라인1 전용 폰트 */
     @font-face {
@@ -160,6 +160,8 @@
     .kv{ display:grid; grid-template-columns:120px 1fr; gap:8px 12px; max-width:800px; margin-bottom:18px; }
     .card{ background:#0f141c; border:1px solid #1f2430; border-radius:12px; padding:12px; max-width:880px; }
     .card h3{ margin:0 0 8px; font-size:15px; color:#b7c2cf; }
+    /* ⬇️ 링크가 제목(h3) 안에 있어도 잘 보이게 */
+    .card h3 a{ color:#7aa2ff; text-decoration:underline; }
     .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
     .tips li{ margin:6px 0; }
 
@@ -236,7 +238,7 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbxS9m-84J7WqCVgQRXA5y8bDIisTXLIO6H-rkcQhUBUQgOx2H6PkcBaicKDGrwbvWv8bQ/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbyTS-VR7s4XT0FYAr-Drs0aYO84dXrHd6tDinQQLumyfYpK9RnQcvQASqjsjY5LDf2PiQ/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -620,6 +622,26 @@
       const usageTitle = toStr(s.infoUsageTitle || '사용 방법');
       const usageMd    = toStr(s.infoUsageMarkdown || '');
 
+      // [C] 오송 안내 섹션 설정 로드
+      const osEnabled = String(s.infoOsongEnabled || 'Yes').toLowerCase() !== 'no';
+      const osTitle   = toStr(s.infoOsongTitle || '747오송역정류장');
+      const osBody    = toStr(s.infoOsongBody || '기억을 잇는 모두의 정류장🚏 오송참사를 기억하고, 우리 모두가 다치지 않는 내일을 그리기 위해 행동합니다.');
+      const osInsta   = toStr(s.infoOsongInstagram || 'https://www.instagram.com/747os_busstop/');
+      const osX       = toStr(s.infoOsongX || 'https://x.com/747os_busstop');
+      const osFb      = toStr(s.infoOsongFacebook || 'https://www.facebook.com/747osbusstop');
+
+      const linkHtml = (label, url) => {
+        const u = (url || '').trim();
+        if (!/^https?:\/\//i.test(u)) return '';
+        return `<a href="${escapeAttr(u)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
+      };
+
+      const osLinks = [
+        linkHtml('인스타', osInsta),
+        linkHtml('X', osX),
+        linkHtml('페이스북', osFb)
+      ].filter(Boolean).join(' | ');
+
       $infoBody.innerHTML = `
         <h2>안내 / 도움말</h2>
 
@@ -628,10 +650,20 @@
           <div class="md">${mdToHtml(introMd)}</div>
         </div>
 
-        <div class="card">
+        <div class="card" style="margin-bottom:16px">
           <h3>${escapeHtml(usageTitle)}</h3>
           <div class="md">${mdToHtml(usageMd)}</div>
         </div>
+
+        ${osEnabled ? `
+          <div class="card">
+            <h3>
+              ${escapeHtml(osTitle)}
+              ${osLinks ? ` <span style="font-weight:400;">| ${osLinks}</span>` : ''}
+            </h3>
+            <div class="md"><p>${escapeHtml(osBody)}</p></div>
+          </div>
+        ` : '' }
       `;
     }
 
@@ -887,8 +919,8 @@
 
     function startInertia(vx, vy){
       stopInertia();
-      inertia.vx = vx; inertia.vy = vy;
       let last = performance.now();
+      inertia.vx = vx; inertia.vy = vy;
       const tick = (now)=>{
         const dt = Math.min(48, now - last);
         last = now;
