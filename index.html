@@ -142,17 +142,19 @@
     .overlay{
       position:absolute; inset:0; z-index:2000; display:none;
       background:#0b0e13f5; border-left:1px solid #1f2430; border-right:1px solid #1f2430;
-      /* .main 안에서만 꽉 차도록 (툴바/탑바 위로는 안 올라감) */
     }
     .overlay.open{ display:block; }
-    .overlay .inner{
-      position:absolute; inset:0; overflow:auto; padding:20px 20px 28px;
-    }
+    /* ⬇️ X 버튼 중앙 정렬 + 누르기 쉬운 영역 확대 */
     .overlay .close{
-      position:absolute; right:10px; top:10px;
-      background:#1a1f27; border:1px solid #252b35; color:#fff; border-radius:10px; padding:8px 12px;
+      position:absolute; left:50%; transform:translateX(-50%);
+      top:10px; right:auto;
+      background:#1a1f27; border:1px solid #252b35; color:#fff; border-radius:999px;
+      padding:10px 14px; min-width:44px; min-height:36px; line-height:1; font-weight:700;
     }
     .overlay h2{ margin:8px 0 12px; font-size:18px; }
+    .overlay .inner{
+      position:absolute; inset:0; overflow:auto; padding:56px 20px 28px; /* X버튼 높이만큼 top padding */
+    }
     .kv{ display:grid; grid-template-columns:120px 1fr; gap:8px 12px; max-width:800px; margin-bottom:18px; }
     .card{ background:#0f141c; border:1px solid #1f2430; border-radius:12px; padding:12px; max-width:880px; }
     .card h3{ margin:0 0 8px; font-size:15px; color:#b7c2cf; }
@@ -181,7 +183,7 @@
           <button id="zoomInTop" class="btn" title="확대" aria-label="확대">＋</button>
           <button id="fitAllTop" class="btn" title="전체 보기" aria-label="전체 보기">⤢</button>
           <button id="capBoardTop" class="btn" title="보드 캡처" aria-label="보드 캡처">📷</button>
-          <!-- ⬇️ 요청: 캡처 버튼 옆 Info 버튼 추가 -->
+          <!-- Info 버튼 -->
           <button id="infoTop" class="btn" title="안내/도움말" aria-label="안내/도움말">ℹ️</button>
         </div>
       </div>
@@ -195,12 +197,10 @@
       <!-- Minimap -->
       <div class="minimap" id="miniWrap"><canvas id="minimap"></canvas></div>
 
-      <!-- ⬇️ 요청: 게시판 영역을 가득 덮는 Info 오버레이 -->
+      <!-- Info 오버레이 -->
       <div class="overlay" id="infoOverlay" aria-hidden="true" role="dialog" aria-label="안내">
-        <button class="close" id="infoClose" aria-label="닫기">✕</button>
-        <div class="inner" id="infoBody">
-          <!-- JS에서 내용 렌더링 -->
-        </div>
+        <button class="close" id="infoClose" data-action="close-overlay" aria-label="닫기">✕</button>
+        <div class="inner" id="infoBody"><!-- JS Render --></div>
       </div>
     </div>
   </div>
@@ -229,7 +229,7 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbzAo4eiM4Iide3jDR-DEH0HdcS296TizLN2fDeTmrgGNzpkW8-PWk4BQZpVZmAFtFNiWg/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbw1saPzyfdiVDo2U1m9MFaSsjuAtJln1Rr6oIV1yvQXkwJFFoSR3KEUN36gGUL3zolHlQ/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -431,11 +431,22 @@
       $btnDel.onclick = clearDraft;
       $btnGo.onclick  = () => centerOnDraft(1.0);
 
-      // ⬇️ Info 버튼: 오버레이 열기
+      // Info 버튼: 오버레이 열기
       $btnInfoTop.onclick = () => { renderInfoOverlay(); openInfo(); };
-      $infoClose.onclick = closeInfo;
-      // 오버레이 배경 클릭 시 닫기(우발 클릭 방지: close 버튼 외 영역 클릭 시 닫지 않음)
-      $infoOverlay.addEventListener('click', (e)=>{ if (e.target === $infoOverlay) closeInfo(); });
+
+      // 닫기 버튼 직접 바인딩 (우선)
+      if ($infoClose) $infoClose.onclick = closeInfo;
+
+      // 안전망: 문서 레벨 위임(동적으로 대체되어도 동작)
+      document.addEventListener('click', (e)=>{
+        const btn = e.target.closest('#infoClose,[data-action="close-overlay"]');
+        if (btn){ e.preventDefault(); closeInfo(); }
+      });
+
+      // 배경 클릭으로 닫기 (콘텐츠 영역 클릭은 무시)
+      $infoOverlay.addEventListener('click', (e)=>{
+        if (e.target === $infoOverlay) closeInfo();
+      });
 
       $board.addEventListener('pointerdown', onPointerDown, {passive:false});
       $board.addEventListener('pointermove', onPointerMove,  {passive:false});
@@ -454,7 +465,7 @@
         const isEditing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
         if (isEditing) return;
 
-        if (e.key === 'Escape') { // 패널/오버레이 닫기 우선
+        if (e.key === 'Escape') {
           if ($infoOverlay.classList.contains('open')) { closeInfo(); return; }
           if (state.panelOpen) { togglePanel(); return; }
         }
