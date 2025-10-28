@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>온라인 포스트잇 게시판</title>
   <style>
-    /* 라인1 전용 폰트 */
+    /* ⬇️ 라인1 전용 폰트 */
     @font-face {
       font-family: 'April16Promise';
       src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404-2@1.0/April16th-Promise.woff2') format('woff2');
@@ -17,8 +17,9 @@
       --bg:#0f1115; --text:#e8eaed; --title-color:#ffffff; --title-align:center;
       --postit-image:none; --board-image:none; --note-size: 280px; --panel-width: 320px;
       --cam-x: 0px; --cam-y: 0px; --scale: 1; --topbar-h: 56px;
+      /* 제목 자동 피팅 기본 크기 + (라인2/기본) 폰트 패밀리 + 라인별 색상 */
       --title-font-px: 18px;
-      --title-font-family: inherit;
+      --title-font-family: inherit;      /* 라인2/기본 */
       --title-line1-color: unset;
       --title-line2-color: unset;
     }
@@ -40,6 +41,7 @@
     }
 
     .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; letter-spacing:.2px; overflow:hidden; }
+    /* 두 줄 모드 */
     .title .line1,
     .title .line2{
       font-size: var(--title-font-px);
@@ -48,9 +50,11 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    /* 라인1은 April16Promise, 라인2는 변수(기본/커스텀) */
     .title .line1{ color: var(--title-line1-color, inherit); font-family: 'April16Promise', var(--title-font-family); }
     .title .line2{ color: var(--title-line2-color, inherit); font-family: var(--title-font-family); margin-top:2px; font-weight:600; opacity:.95; }
 
+    /* 한 줄 결합 모드 */
     .title .lineCombined{
       font-size: var(--title-font-px);
       line-height:1.1;
@@ -83,6 +87,29 @@
     .panel.right{ left:auto; right:0; border-right:none; border-left:1px solid #1f2430; transform: translateX(calc(var(--panel-x, 100%))); }
     .panel.open{ --panel-x: 0%; }
     .panel h3{ margin:6px 0 8px; font-size:14px; color:#b7c2cf; }
+
+    /* === Info 패널(블라인드 다운) === */
+    .infopanel{
+      position:fixed; left:0; right:0; top:var(--topbar-h);
+      background:#0b0e13f2; border-bottom:1px solid #1f2430;
+      box-shadow:0 10px 24px rgba(0,0,0,.35);
+      transform: translateY(-110%);
+      transition: transform .28s ease;
+      z-index: 900; /* 툴바 아래, 보드 위 */
+      padding: 14px 16px 16px;
+      pointer-events: none;
+    }
+    .infopanel.open{ transform: translateY(0); pointer-events:auto; }
+    .infopanel .close{
+      position:absolute; top:10px; right:12px;
+      background:#1a1f27; border:1px solid #2a3140; color:#e8eaed;
+      border-radius:10px; padding:6px 10px;
+    }
+    .infopanel h3{ margin:0 0 8px; font-size:16px; color:#c9d5e8; }
+    .infogrid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; margin-top:8px; }
+    .infobox{ background:#0e131b; border:1px solid #1f2a3a; border-radius:12px; padding:10px; }
+    .infobox .k{ color:#9fb2cc; font-size:12px; }
+    .infobox .v{ font-size:14px; margin-top:4px; }
 
     .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:auto; }
     .table th, .table td{ border-bottom:1px solid #273040; padding:8px; text-align:left; vertical-align:top; }
@@ -149,37 +176,6 @@
       box-shadow:0 6px 16px rgba(0,0,0,.25);
     }
     .minimap canvas{ width:100%; height:100%; display:block; }
-
-    /* ===== Info 상단 블라인드 패널 ===== */
-    .infopanel{
-      position:fixed;
-      left:0; right:0;
-      top:var(--topbar-h);
-      max-height:60vh;
-      background:#0b0e13f2;
-      border-bottom:1px solid #1f2430;
-      box-shadow: 0 12px 28px rgba(0,0,0,.35);
-      transform: translateY(calc(-100% - 12px));
-      transition: transform .28s ease;
-      z-index:1200;
-      overflow:auto;
-    }
-    .infopanel.open{ transform: translateY(0); }
-    .infopanel .inner{ padding:18px 16px 20px; }
-    .infopanel header{
-      display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;
-    }
-    .infopanel h2{ font-size:16px; margin:0; color:#e6edf3; }
-    .infopanel .closebtn{
-      background:#1a1f27; border:1px solid #252b35; color:#d9e3f0;
-      padding:6px 10px; border-radius:10px; min-width:36px; min-height:30px;
-    }
-    .infopanel section{ margin:10px 0 0; }
-    .infopanel h3{ margin:10px 0 6px; font-size:14px; color:#b7c2cf; }
-    .infopanel p{ margin:6px 0; line-height:1.6; color:#d9e3f0; }
-    .infopanel ul{ margin:6px 0 10px 18px; color:#d9e3f0; }
-    .infopanel li{ margin:4px 0; }
-
   </style>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 </head>
@@ -203,8 +199,8 @@
           <button id="zoomInTop" class="btn" title="확대" aria-label="확대">＋</button>
           <button id="fitAllTop" class="btn" title="전체 보기" aria-label="전체 보기">⤢</button>
           <button id="capBoardTop" class="btn" title="보드 캡처" aria-label="보드 캡처">📷</button>
-          <!-- ⬇️ C 반영: Info 버튼 추가 -->
-          <button id="infoTop" class="btn" title="안내" aria-label="안내">ℹ️</button>
+          <!-- ⬇️ 제안 1: Info 패널 버튼 (캡처 버튼 바로 옆) -->
+          <button id="infoTop" class="btn" title="정보 패널" aria-expanded="false" aria-controls="infoPanel">ℹ️</button>
         </div>
       </div>
     </div>
@@ -214,6 +210,39 @@
         <div class="world" id="world"></div>
       </div>
       <div class="minimap" id="miniWrap"><canvas id="minimap"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ⬇️ 제안 2: 위→아래 블라인드로 내려오는 Info 패널 -->
+  <div id="infoPanel" class="infopanel" aria-hidden="true">
+    <button id="infoClose" class="iconbtn close" title="닫기" aria-label="닫기">✕</button>
+    <h3>게시판 정보</h3>
+    <div class="infogrid">
+      <div class="infobox">
+        <div class="k">앱 버전</div>
+        <div class="v" id="infoVersion">-</div>
+      </div>
+      <div class="infobox">
+        <div class="k">내 소유자 ID</div>
+        <div class="v" id="infoOwner">-</div>
+      </div>
+      <div class="infobox">
+        <div class="k">승인됨 / 제출됨</div>
+        <div class="v"><span id="infoApproved">0</span> / <span id="infoSubmitted">0</span></div>
+      </div>
+      <div class="infobox">
+        <div class="k">내 메모(거절 제외)</div>
+        <div class="v" id="infoMine">0</div>
+      </div>
+    </div>
+    <div class="infobox" style="margin-top:10px;">
+      <div class="k">사용 팁</div>
+      <div class="v">
+        • 더블클릭/더블탭: 현재 보드 위치에 새 메모 초안 만들기<br>
+        • 마우스 휠: 이동 · Ctrl + 휠: 확대/축소 · 트랙패드 핀치: 확대/축소<br>
+        • 방향키: 보드 이동 · 목록行 클릭: 해당 메모로 이동<br>
+        • 초안은 제출 후 수정/삭제 불가 (관리자가 승인 처리)
+      </div>
     </div>
   </div>
 
@@ -227,33 +256,11 @@
     </table>
   </aside>
 
-  <!-- ⬇️ C 반영: 상단 블라인드 Info 패널 -->
-  <div id="infopanel" class="infopanel" aria-hidden="true">
-    <div class="inner">
-      <header>
-        <h2>안내</h2>
-        <button id="infoClose" class="closebtn" title="닫기" aria-label="닫기">✕</button>
-      </header>
-      <section>
-        <h3>설명 A — 포스트잇 작성 및 제출법</h3>
-        <ul>
-          <li><b>배치:</b> 보드에서 <b>더블클릭</b> (모바일은 같은 위치 <b>두 번 탭</b>) 하면 새 메모가 생깁니다.</li>
-          <li><b>입력:</b> 닉네임(선택)과 내용을 작성하고, 우측 세로 슬라이더로 글자 크기를 조절합니다.</li>
-          <li><b>이동:</b> 메모 상단의 <b>십자 드래그 핸들</b>을 잡아 원하는 위치로 옮깁니다.</li>
-          <li><b>제출:</b> <b>✓</b> 버튼을 누르면 제출됩니다. <u>제출 후 수정/삭제는 불가</u>합니다.</li>
-          <li><b>보기:</b> 관리자가 승인하면 전체 보드와 좌측 리스트에 표시됩니다.</li>
-          <li><b>화면 이동/확대:</b> 가운데 버튼(휠클릭) 드래그로 이동, <b>Ctrl+휠</b>로 확대/축소, 또는 상단 슬라이더/버튼을 사용하세요.</li>
-        </ul>
-      </section>
-      <section>
-        <h3>설명 B — 오송참사 추모 안내문</h3>
-        <p>오송참사는 충북도민 모두의 생명과 안전을 묻는 사건입니다. 유가족과 충북도는 도청 서문 광장 추모조형물 설치에 합의했지만, 충북도의회는 도민의 의견, 공론화 부족을 이유로 추모조형물 예산 5천만 원을 상임위·예결위·본회의에서 연달아 전액 삭감했습니다. 도의회는 오송역 버스정류장 앞 2,000개의 추모쪽지를 잊으셨습니까. 기억을 거부하는 자 누구입니까. 도민은 기억합니다. 예산은 삭감할 수 있을지언정 도민의 기억은 삭감할 수 없습니다.</p>
-      </section>
-    </div>
-  </div>
-
   <script>
-    /* GitHub 설정: 제목(기본/라인2) 전용 폰트 */
+    /* ==========================================================
+     * 🔧 GitHub 설정: 제목(기본/라인2) 전용 폰트
+     *    라인1은 CSS에서 April16Promise로 직접 설정됩니다.
+     * ========================================================== */
     const GITHUB_SETTINGS = {
       titleFont: {
         enabled: true,
@@ -264,12 +271,13 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbx6X2DcqP0zIVQ9cu5BEqpbNnrj1vKDmc-rszjEqywEZ353OgZZHTFvbtngEhDTwJbu7w/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbz0XtGLqbawPlz28LZ4vWsSeklJcnPTDpwrimSkxrINWRCElqiPdoihYpDa1RxtUjmH_Q/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
 
+    // 제목 한 줄 전환 임계값(px)
     const TITLE_ONE_LINE_BREAKPOINT = 1200;
 
     /* ====== State ====== */
@@ -277,8 +285,7 @@
       owner: getOrSetOwner_(), settings: null, notes: [],
       draft: loadDraft_(), panelOpen: false, panelDock: 'left', panPrev: null,
       zMap: {}, zCounters: { submitted:0, approved:0 }, lastTapTime: 0, lastTapPos: {x:0,y:0},
-      titleParts: { l1:'', l2:'' }, titleOneLine: false,
-      infoOpen: false
+      titleParts: { l1:'', l2:'' }, titleOneLine: false
     };
 
     const $root = document.documentElement;
@@ -294,13 +301,19 @@
     const $btnGo  = document.getElementById('btnGo');
     const $btnDel = document.getElementById('btnDel');
 
+    const $infoPanel = document.getElementById('infoPanel');
+    const $infoBtn   = document.getElementById('infoTop');
+    const $infoClose = document.getElementById('infoClose');
+
+    const $infoVersion = document.getElementById('infoVersion');
+    const $infoOwner   = document.getElementById('infoOwner');
+    const $infoApproved= document.getElementById('infoApproved');
+    const $infoSubmitted=document.getElementById('infoSubmitted');
+    const $infoMine    = document.getElementById('infoMine');
+
     const $miniWrap = document.getElementById('miniWrap');
     const $minimap = document.getElementById('minimap');
     const mm = { dragging:false };
-
-    const $infoPanel = document.getElementById('infopanel');
-    const $infoTop   = document.getElementById('infoTop');
-    const $infoClose = document.getElementById('infoClose');
 
     const inertia = { raf:0, vx:0, vy:0, damping:0.985 };
     const pan = { raf:0, dx:0, dy:0, lastVX:0, lastVY:0, lastT:0 };
@@ -308,16 +321,25 @@
 
     /* ====== Boot ====== */
     (async function init(){
-      applyGithubTitleFont_();
+      applyGithubTitleFont_();  // 라인2/기본 폰트 주입
       recalcTopbarHeight_();
       await bootstrap();
       bindUI();
       renderAll();
-      evaluateTitleLayout();
-      fitTitle();
+      evaluateTitleLayout();   // 폭에 따라 1줄/2줄 결정
+      fitTitle();              // 자동 피팅
       focusWorldPoint({ x: 5000, y: 5000 });
       updateTopbarActions();
       window.addEventListener('resize', onResize);
+
+      if (window.ResizeObserver){
+        const ro = new ResizeObserver(()=>{
+          evaluateTitleLayout();
+          fitTitle();
+          recalcTopbarHeight_();
+        });
+        ro.observe($title);
+      }
     })();
 
     /* === (라인2/기본) 폰트 적용 === */
@@ -371,10 +393,11 @@
       const s = j.settings.values;
       state.settings = j.settings;
 
+      // 제목 파트 저장
       const line1 = toStr(s.screenTitleLine1 || s.screenTitle || '온라인 포스트잇 게시판');
       const line2 = toStr(s.screenTitleLine2 || '');
       state.titleParts = { l1: line1, l2: line2 };
-      renderTitleDOM();
+      renderTitleDOM(); // 현재 모드에 맞춰 DOM 구성
 
       document.title = toStr(s.pageTitle || line1);
       setVar('--title-align', s.titleAlign || 'center');
@@ -411,20 +434,24 @@
       evaluateTitleLayout();
       fitTitle();
       recalcTopbarHeight_();
+
+      // Info 패널 데이터 초기화
+      updateInfoPanelData();
     }
 
     /* ====== 제목 DOM & 레이아웃 ====== */
     function renderTitleDOM(){
       const { l1, l2 } = state.titleParts;
       if (state.titleOneLine && l2){
-        document.getElementById('title').innerHTML = `
+        // ⬇️ 중간 점(·) 제거, 공백으로 연결
+        $title.innerHTML = `
           <div class="lineCombined">
             <span class="p1">${escapeHtml(l1)}</span>
             <span class="p2"> ${escapeHtml(l2)}</span>
           </div>
         `;
       } else {
-        document.getElementById('title').innerHTML = `
+        $title.innerHTML = `
           <div class="line1">${escapeHtml(l1)}</div>
           ${l2 ? `<div class="line2">${escapeHtml(l2)}</div>` : ''}
         `;
@@ -450,9 +477,12 @@
       document.getElementById('fitAllTop').onclick = fitAll;
       document.getElementById('capBoardTop').onclick = () => captureElem($board, 'board.png');
 
-      // ⬇️ Info 버튼
-      $infoTop.onclick = () => openInfo();
-      $infoClose.onclick = () => closeInfo();
+      // ⬇️ Info 패널 토글
+      $infoBtn.onclick = () => {
+        if ($infoPanel.classList.contains('open')) closeInfoPanel();
+        else openInfoPanel();
+      };
+      $infoClose.onclick = closeInfoPanel;
 
       $btnNew.onclick = () => {
         if (state.draft) { centerOnDraft(1.0); return; }
@@ -478,10 +508,6 @@
         const ae = document.activeElement;
         const isEditing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
         if (isEditing) return;
-
-        // ESC로 Info 패널 닫기 우선
-        if (e.key === 'Escape' && state.infoOpen){ closeInfo(); return; }
-
         if (e.key === 'Escape' && state.panelOpen) togglePanel();
         if (e.key === 'ArrowLeft')  { CAMERA.x += 80; setCamVars_(); }
         if (e.key === 'ArrowRight') { CAMERA.x -= 80; setCamVars_(); }
@@ -496,29 +522,38 @@
       $miniWrap.addEventListener('pointercancel', mmEnd);
     }
 
-    // Info 패널 토글
-    function openInfo(){
-      if (state.infoOpen) return;
-      state.infoOpen = true;
-      $infoPanel.classList.add('open');
-      $infoPanel.setAttribute('aria-hidden', 'false');
-    }
-    function closeInfo(){
-      if (!state.infoOpen) return;
-      state.infoOpen = false;
-      $infoPanel.classList.remove('open');
-      $infoPanel.setAttribute('aria-hidden', 'true');
-    }
-
     function togglePanel(){
       state.panelOpen = !state.panelOpen;
       $panel.classList.toggle('open', state.panelOpen);
     }
 
+    function openInfoPanel(){
+      updateInfoPanelData();
+      $infoPanel.classList.add('open');
+      $infoPanel.setAttribute('aria-hidden','false');
+      $infoBtn.setAttribute('aria-expanded','true');
+    }
+    function closeInfoPanel(){
+      $infoPanel.classList.remove('open');
+      $infoPanel.setAttribute('aria-hidden','true');
+      $infoBtn.setAttribute('aria-expanded','false');
+    }
+    function updateInfoPanelData(){
+      const ver = state.settings && state.settings.version ? state.settings.version : '-';
+      $infoVersion.textContent = ver;
+      $infoOwner.textContent = state.owner.slice(0,8) + '…';
+      const submitted = state.notes.filter(n => n.status === 'submitted').length;
+      const approved  = state.notes.filter(n => n.status === 'approved').length;
+      const mine = state.notes.filter(n => n.owner === state.owner && n.status !== 'rejected').length;
+      $infoSubmitted.textContent = String(submitted);
+      $infoApproved.textContent  = String(approved);
+      $infoMine.textContent      = String(mine);
+    }
+
     async function refreshList(){
       const url = `${API}?action=list&owner=${encodeURIComponent(state.owner)}`;
       const j = await (await fetch(url, {mode:'cors'})).json();
-      if (j.ok) { state.notes = (j.data || []).map(sanitizeNote); renderAll(); }
+      if (j.ok) { state.notes = (j.data || []).map(sanitizeNote); renderAll(); updateInfoPanelData(); }
     }
 
     /* ====== Rendering ====== */
@@ -542,7 +577,7 @@
         if (state.zMap[n.id]) el.style.zIndex = state.zMap[n.id];
 
         el.innerHTML = `
-          <div class="nick">${escapeHtml(toStr(n.nick || '익명'))}${n.status==='submitted'?' <small style="color:#555">· 승인대기</small>':''}</div>
+          <div class="nick">${escapeHtml(toStr(nickOrAnon(n)))}${n.status==='submitted'?' <small style="color:#555">· 승인대기</small>':''}</div>
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
 
@@ -633,7 +668,7 @@
 
     /* ====== Title auto-fit ====== */
     function fitTitle(){
-      const container = document.getElementById('title');
+      const container = $title;
       if (!container) return;
 
       const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
@@ -714,6 +749,7 @@
           state.notes.push(sanitizeNote(newNote));
           state.draft = null; localStorage.removeItem('mn_draft');
           renderAll();
+          updateInfoPanelData();
           refreshList();
         }catch(err){
           alert('네트워크 오류로 제출에 실패했습니다.\n(웹앱 배포 권한 또는 CORS 설정을 확인하세요)');
@@ -741,7 +777,7 @@
       focusWorldPoint(center);
     }
 
-    function clearDraft(){ state.draft = null; localStorage.removeItem('mn_draft'); renderAll(); updateTopbarActions(); }
+    function clearDraft(){ state.draft = null; localStorage.removeItem('mn_draft'); renderAll(); updateTopbarActions(); updateInfoPanelData(); }
     function saveDraft_(d){ localStorage.setItem('mn_draft', JSON.stringify(d)); updateTopbarActions(); }
     function loadDraft_(){ try{ return JSON.parse(localStorage.getItem('mn_draft')||'null'); }catch(e){ return null; } }
 
@@ -874,8 +910,8 @@
         const dt = Math.max(1, now - pan.lastT);
         const prev = state.panPrev || {x: ev.clientX, y: ev.clientY};
         const dx = ev.clientX - prev.x;
-        the_dy = ev.clientY - prev.y;
-        let dy = the_dy;
+        const dy = ev.clientY - prev.y;
+
         pan.dx += dx; pan.dy += dy;
         if (!pan.raf){
           pan.raf = requestAnimationFrame(()=>{
