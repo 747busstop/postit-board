@@ -140,7 +140,7 @@
 
     /* ===== Info Overlay ===== */
     .overlay{
-      position:absolute; inset:0; z-index:2000; display:none;
+      position:fixed; inset:0; z-index:2000; display:none;
       background:#0b0e13f5; border-left:1px solid #1f2430; border-right:1px solid #1f2430;
     }
     .overlay.open{ display:block; }
@@ -150,10 +150,13 @@
       top:10px; right:auto;
       background:#1a1f27; border:1px solid #252b35; color:#fff; border-radius:999px;
       padding:10px 14px; min-width:44px; min-height:36px; line-height:1; font-weight:700;
+      z-index: 3000; /* 🔧 overlay 안의 다른 요소 위에 확실히 오도록 */
     }
     .overlay h2{ margin:8px 0 12px; font-size:18px; }
     .overlay .inner{
-      position:absolute; inset:0; overflow:auto; padding:56px 20px 28px; /* X버튼 높이만큼 top padding */
+      position:absolute; left:0; right:0; bottom:0; top:56px; /* 🔧 버튼 영역을 실제로 비워 클릭 충돌 제거 */
+      overflow:auto; padding:0 20px 28px;
+      z-index: 0;
     }
     .kv{ display:grid; grid-template-columns:120px 1fr; gap:8px 12px; max-width:800px; margin-bottom:18px; }
     .card{ background:#0f141c; border:1px solid #1f2430; border-radius:12px; padding:12px; max-width:880px; }
@@ -229,7 +232,7 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbw1saPzyfdiVDo2U1m9MFaSsjuAtJln1Rr6oIV1yvQXkwJFFoSR3KEUN36gGUL3zolHlQ/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbzwhJzoVEV0tvvynTqjLw6ZWmYXIRpaMTGduTwm7JljG3IQTchPWDS94RuTN_UyOA/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -434,8 +437,11 @@
       // Info 버튼: 오버레이 열기
       $btnInfoTop.onclick = () => { renderInfoOverlay(); openInfo(); };
 
-      // 닫기 버튼 직접 바인딩 (우선)
-      if ($infoClose) $infoClose.onclick = closeInfo;
+      // 🔧 닫기 버튼: 모바일에서 확실히 동작하도록 포인터/터치/클릭 모두 바인딩
+      const closeNow = (e)=>{ e.preventDefault(); e.stopPropagation(); closeInfo(); };
+      ['pointerdown','touchstart','click'].forEach(evt=>{
+        $infoClose.addEventListener(evt, closeNow, {passive:false});
+      });
 
       // 안전망: 문서 레벨 위임(동적으로 대체되어도 동작)
       document.addEventListener('click', (e)=>{
@@ -443,7 +449,7 @@
         if (btn){ e.preventDefault(); closeInfo(); }
       });
 
-      // 배경 클릭으로 닫기 (콘텐츠 영역 클릭은 무시)
+      // 오버레이 바깥 영역 클릭 시 닫기
       $infoOverlay.addEventListener('click', (e)=>{
         if (e.target === $infoOverlay) closeInfo();
       });
