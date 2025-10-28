@@ -184,6 +184,7 @@
           <button id="zoomOutTop" class="btn" title="축소" aria-label="축소">−</button>
           <input id="zoomRangeTop" type="range" min="0.2" max="2.0" step="0.01" value="1" aria-label="확대/축소 슬라이더" />
           <button id="zoomInTop" class="btn" title="확대" aria-label="확대">＋</button>
+          <!-- ⬇️ 전체보기 버튼 제거됨 -->
           <button id="capBoardTop" class="btn" title="보드 캡처" aria-label="보드 캡처">📷</button>
           <!-- Info 버튼 -->
           <button id="infoTop" class="btn" title="안내/도움말" aria-label="안내/도움말">ℹ️</button>
@@ -231,7 +232,7 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbx37pYm2rkRuPHyXFoO0ZJqKuO8Hg0EK72ZN5kGHtSY78vx43a-6eWB0Abnp6Tvk7uU3w/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbwhhOKheU-8vH0QnVfb2adMDKhkmtGR9e10wOVv5hG20xhQlqW5t-0B3xF89bf1aDp4Hg/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -282,9 +283,6 @@
       fitTitle();
       focusWorldPoint({ x: 5000, y: 5000 });
       updateTopbarActions();
-      // 접속 시 Info 자동 오픈
-      renderInfoOverlay(); openInfo();
-
       window.addEventListener('resize', onResize);
 
       if (window.ResizeObserver){
@@ -295,6 +293,10 @@
         });
         ro.observe($title);
       }
+
+      /* ⬇️ 첫 접속 시 Info 자동 오픈 */
+      renderInfoOverlay();
+      openInfo();
     })();
 
     /* === (라인2/기본) 폰트 적용 === */
@@ -425,6 +427,7 @@
       document.getElementById('zoomInTop').onclick  = () => setZoomAtCenter(CAMERA.scale * 1.1);
       document.getElementById('zoomOutTop').onclick = () => setZoomAtCenter(CAMERA.scale / 1.1);
       $zoomRangeTop.oninput = e => setZoomAtCenter(parseFloat(e.target.value));
+      // ⬇️ 전체보기 버튼 바인딩 제거됨
       document.getElementById('capBoardTop').onclick = () => captureElem($board, 'board.png');
 
       $btnNew.onclick = () => {
@@ -438,19 +441,19 @@
       // Info 버튼: 오버레이 열기
       $btnInfoTop.onclick = () => { renderInfoOverlay(); openInfo(); };
 
-      // 🔧 닫기 버튼: 모바일에서 확실히 동작하도록 포인터/터치/클릭 모두 바인딩
+      // 닫기 버튼: 포인터/터치/클릭 모두 지원
       const closeNow = (e)=>{ e.preventDefault(); e.stopPropagation(); closeInfo(); };
       ['pointerdown','touchstart','click'].forEach(evt=>{
         $infoClose.addEventListener(evt, closeNow, {passive:false});
       });
 
-      // 안전망: 문서 레벨 위임(동적으로 대체되어도 동작)
+      // 안전망: 문서 레벨 위임
       document.addEventListener('click', (e)=>{
         const btn = e.target.closest('#infoClose,[data-action="close-overlay"]');
         if (btn){ e.preventDefault(); closeInfo(); }
       });
 
-      // 오버레이 바깥 영역 클릭 시 닫기
+      // 오버레이 바깥 클릭 시 닫기
       $infoOverlay.addEventListener('click', (e)=>{
         if (e.target === $infoOverlay) closeInfo();
       });
@@ -927,4 +930,169 @@
         const k = 1;
         let dx = e.deltaX, dy = e.deltaY;
         if (Math.abs(dx) < 1 && e.shiftKey) dx = dy;
-        CAMERA.x -= dx * k; CAMERA.y -=
+        CAMERA.x -= dx * k; CAMERA.y -= dy * k;
+        setCamVars_();
+      }
+    }
+
+    /* ====== Minimap ====== */
+    function updateMinimap(){
+      const ctx = $minimap.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = $miniWrap.clientWidth || 160, cssH = $miniWrap.clientHeight || 160;
+      $minimap.width = Math.round(cssW * dpr); $minimap.height = Math.round(cssH * dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0, cssW, cssH);
+      ctx.fillStyle = '#0b0e13'; ctx.fillRect(0,0, cssW, cssH);
+      ctx.strokeStyle = '#293241'; ctx.strokeRect(0.5,0.5, cssW-1, cssH-1);
+
+      const sx = cssW / BOUNDS.W, sy = cssH / BOUNDS.H, s = Math.min(sx, sy);
+      ctx.fillStyle = '#9ab6ff';
+      const dot = Math.max(2, Math.round(NOTE.W * s * 0.5));
+      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+      for (const n of state.notes){
+        const nx = clamp(n.x||0, 0, maxX);
+        const ny = clamp(n.y||0, 0, maxY);
+        ctx.fillRect(Math.round(nx*s), Math.round(ny*s), dot, dot);
+      }
+      if (state.draft){
+        const dx = clamp(state.draft.x||0, 0, maxX);
+        const dy = clamp(state.draft.y||0, 0, maxY);
+        ctx.fillStyle = '#ffb86b';
+        ctx.fillRect(Math.round(dx*s), Math.round(dy*s), dot, dot);
+      }
+
+      const r = $board.getBoundingClientRect();
+      const wx = clamp(-CAMERA.x / CAMERA.scale, 0, BOUNDS.W);
+      const wy = clamp(-CAMERA.y / CAMERA.scale, 0, BOUNDS.H);
+      const ww = Math.min(r.width / CAMERA.scale, BOUNDS.W);
+      const wh = Math.min(r.height / CAMERA.scale, BOUNDS.H);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
+      ctx.strokeRect(Math.round(wx*s)+0.5, Math.round(wy*s)+0.5, Math.max(10, ww*s), Math.max(10, wh*s));
+    }
+
+    function goMinimap(e){
+      const rect = $miniWrap.getBoundingClientRect();
+      const x = e.clientX - rect.left, y = e.clientY - rect.top;
+      const cssW = rect.width, cssH = rect.height;
+      const sx = cssW / BOUNDS.W, sy = cssH / BOUNDS.H, s = Math.min(sx, sy);
+      const wx = x / s, wy = y / s;
+      focusWorldPoint({ x: wx, y: wy });
+    }
+    $miniWrap.addEventListener('pointerdown', (e) => { mm.dragging = true; goMinimap(e); e.preventDefault(); });
+    $miniWrap.addEventListener('pointermove', (e) => { if (mm.dragging) { goMinimap(e); e.preventDefault(); } });
+    const mm = { dragging:false };
+    const mmEnd = () => { mm.dragging = false; };
+    $miniWrap.addEventListener('pointerup', mmEnd);
+    $miniWrap.addEventListener('pointercancel', mmEnd);
+
+    /* ====== Capture ====== */
+    async function captureElem(el, filename){
+      try{
+        if (!window.html2canvas) throw new Error('no html2canvas');
+        const canvas = await html2canvas(el, {backgroundColor: null, useCORS: true, scale: 2});
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = filename || 'capture.png';
+        a.click();
+      }catch(e){
+        window.print();
+      }
+    }
+
+    /* ====== Utils ====== */
+    function setVar(k, v){ document.documentElement.style.setProperty(k, v); }
+    function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
+    function nickOrAnon(n){ return (n.nick && String(n.nick).trim()) ? n.nick : '익명'; }
+    function getOrSetOwner_(){ let id = localStorage.getItem('mn_owner'); if (!id) { id = cryptoRandomId_(); localStorage.setItem('mn_owner', id); } return id; }
+    function cryptoRandomId_(){ const a = new Uint8Array(16); crypto.getRandomValues(a); return [...a].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+    function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+    function escapeAttr(s){ return String(s).replace(/"/g, '&quot;'); }
+    function escapeText(s){ return String(s).replace(/</g, '&lt;'); }
+
+    function autoFitText(el, preferredPt, minPt){
+      let pt = Math.max(minPt||8, preferredPt||14);
+      el.style.fontSize = pt + 'pt';
+      const maxLoops = 30; let loops = 0;
+      while (loops < maxLoops && el.scrollHeight > el.clientHeight && pt > (minPt||8)) {
+        const ratio = el.clientHeight / Math.max(1, el.scrollHeight);
+        pt = Math.max(minPt||8, Math.floor(Math.min(pt - 1, pt * (ratio * 0.98))));
+        el.style.fontSize = pt + 'pt'; loops++;
+      }
+    }
+
+    function sanitizeNote(n){
+      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+      return {
+        ...n,
+        nick: toStr(n.nick), text: toStr(n.text), tsKR: toStr(n.tsKR), ts: toStr(n.ts),
+        status: (n.status||'').toString().toLowerCase(),
+        x: clamp(Number(n.x)||0, 0, maxX), y: clamp(Number(n.y)||0, 0, maxY),
+        fs: clamp(Number(n.fs) || 16, 8, 36)
+      };
+    }
+
+    function clampDraftToWorld_(d){
+      const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
+      const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
+      d.x = clamp(Number(d.x)||0, 0, maxX);
+      d.y = clamp(Number(d.y)||0, 0, maxY);
+    }
+
+    function bringToFrontEl(el){
+      const id = el.dataset.id || '';
+      const note = getNoteById(id);
+      const status = (note && note.status) || 'approved';
+      const tier = (status === 'submitted') ? 'submitted' : 'approved';
+      const base = (tier === 'submitted') ? 9000 : 8000;
+      state.zCounters[tier] = (state.zCounters[tier] || 0) + 1;
+      const z = Math.min(9998, base + state.zCounters[tier]);
+      state.zMap[id] = z;
+      el.style.zIndex = z;
+    }
+    function findNoteElById(id){ return $world.querySelector(`.note[data-id="${(window.CSS&&CSS.escape)?CSS.escape(String(id||'')):String(id||'').replace(/[^a-zA-Z0-9_-]/g,'\\$&')}"]`); }
+    function getNoteById(id){ return state.notes.find(n => (n.id||'') === (id||'')); }
+    function moveToNote(n){
+      if (CAMERA.scale < 0.85 || CAMERA.scale > 1.2) setZoomAtCenter(1.0);
+      const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
+      focusWorldPoint(center);
+      const el = findNoteElById(n.id); if (el) bringToFrontEl(el);
+    }
+    function focusNote(n){
+      const center = { x: clamp((n.x||0)+NOTE.W/2, 0, BOUNDS.W), y: clamp((n.y||0)+NOTE.H/2, 0, BOUNDS.H) };
+      focusWorldPoint(center);
+      const el = findNoteElById(n.id); if (el) bringToFrontEl(el);
+      if (!state.panelOpen) togglePanel();
+    }
+
+    function updateTopbarActions(){
+      const hasDraft = !!state.draft;
+      $btnNew.style.display = hasDraft ? 'none' : '';
+      $btnGo.style.display  = hasDraft ? '' : 'none';
+      $btnDel.style.display = hasDraft ? '' : 'none';
+    }
+
+    function enableDrag(el, ondrag, handleSelector){
+      const handle = handleSelector ? el.querySelector(handleSelector) : el;
+      let prev = null;
+      handle.addEventListener('pointerdown', (ev)=>{
+        prev = {x:ev.clientX, y:ev.clientY};
+        handle.setPointerCapture(ev.pointerId);
+        ev.stopPropagation();
+      });
+      handle.addEventListener('pointermove', (ev)=>{
+        if (!prev) return;
+        const dx = ev.clientX - prev.x, dy = ev.clientY - prev.y;
+        prev = {x:ev.clientX, y:ev.clientY};
+        ondrag(dx, dy);
+      });
+      const end = ()=> { prev=null; };
+      handle.addEventListener('pointerup', end);
+      handle.addEventListener('pointercancel', end);
+    }
+  </script>
+</body>
+</html>
