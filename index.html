@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>온라인 포스트잇 게시판</title>
   <style>
-    /* ⬇️ 라인1 전용 폰트 */
+    /* 라인1 전용 폰트 */
     @font-face {
       font-family: 'April16Promise';
       src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404-2@1.0/April16th-Promise.woff2') format('woff2');
@@ -17,9 +17,8 @@
       --bg:#0f1115; --text:#e8eaed; --title-color:#ffffff; --title-align:center;
       --postit-image:none; --board-image:none; --note-size: 280px; --panel-width: 320px;
       --cam-x: 0px; --cam-y: 0px; --scale: 1; --topbar-h: 56px;
-      /* 제목 자동 피팅 기본 크기 + (라인2/기본) 폰트 패밀리 + 라인별 색상 */
       --title-font-px: 18px;
-      --title-font-family: inherit;      /* 라인2/기본 */
+      --title-font-family: inherit;
       --title-line1-color: unset;
       --title-line2-color: unset;
     }
@@ -41,26 +40,18 @@
     }
 
     .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; letter-spacing:.2px; overflow:hidden; }
-    /* 두 줄 모드 */
     .title .line1,
     .title .line2{
       font-size: var(--title-font-px);
       line-height:1.1;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    /* 라인1은 April16Promise, 라인2는 변수(기본/커스텀) */
     .title .line1{ color: var(--title-line1-color, inherit); font-family: 'April16Promise', var(--title-font-family); }
     .title .line2{ color: var(--title-line2-color, inherit); font-family: var(--title-font-family); margin-top:2px; font-weight:600; opacity:.95; }
 
-    /* 한 줄 결합 모드 */
     .title .lineCombined{
       font-size: var(--title-font-px);
-      line-height:1.1;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      line-height:1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .title .lineCombined .p1{ color: var(--title-line1-color, inherit); font-weight:700; font-family: 'April16Promise', var(--title-font-family); }
     .title .lineCombined .p2{ color: var(--title-line2-color, inherit); font-weight:600; opacity:.95; font-family: var(--title-font-family); }
@@ -95,7 +86,7 @@
       box-shadow:0 10px 24px rgba(0,0,0,.35);
       transform: translateY(-110%);
       transition: transform .28s ease;
-      z-index: 900; /* 툴바 아래, 보드 위 */
+      z-index: 1200; /* ⬅️ 사이드 패널(1000)보다 높여 X 버튼 가림 방지 */
       padding: 14px 16px 16px;
       pointer-events: none;
     }
@@ -106,10 +97,7 @@
       border-radius:10px; padding:6px 10px;
     }
     .infopanel h3{ margin:0 0 8px; font-size:16px; color:#c9d5e8; }
-    .infogrid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; margin-top:8px; }
     .infobox{ background:#0e131b; border:1px solid #1f2a3a; border-radius:12px; padding:10px; }
-    .infobox .k{ color:#9fb2cc; font-size:12px; }
-    .infobox .v{ font-size:14px; margin-top:4px; }
 
     .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:auto; }
     .table th, .table td{ border-bottom:1px solid #273040; padding:8px; text-align:left; vertical-align:top; }
@@ -183,7 +171,7 @@
   <div class="app">
     <div class="topbar" id="topbar">
       <button id="btnPanel" class="iconbtn" title="리스트" aria-label="리스트">🗂️</button>
-      <div class="title" id="title"><!-- JS에서 채움 --></div>
+      <div class="title" id="title"></div>
       <div class="right-actions">
         <button id="btnNew" class="btn primary" title="새 메모" aria-label="새 메모">＋</button>
         <button id="btnGo"  class="btn" style="display:none;" title="작성중으로 이동" aria-label="작성중으로 이동">🧭</button>
@@ -199,7 +187,6 @@
           <button id="zoomInTop" class="btn" title="확대" aria-label="확대">＋</button>
           <button id="fitAllTop" class="btn" title="전체 보기" aria-label="전체 보기">⤢</button>
           <button id="capBoardTop" class="btn" title="보드 캡처" aria-label="보드 캡처">📷</button>
-          <!-- ⬇️ 제안 1: Info 패널 버튼 (캡처 버튼 바로 옆) -->
           <button id="infoTop" class="btn" title="정보 패널" aria-expanded="false" aria-controls="infoPanel">ℹ️</button>
         </div>
       </div>
@@ -213,36 +200,15 @@
     </div>
   </div>
 
-  <!-- ⬇️ 제안 2: 위→아래 블라인드로 내려오는 Info 패널 -->
+  <!-- 간결한 INFO 패널: 사용 팁만 표기 -->
   <div id="infoPanel" class="infopanel" aria-hidden="true">
     <button id="infoClose" class="iconbtn close" title="닫기" aria-label="닫기">✕</button>
-    <h3>게시판 정보</h3>
-    <div class="infogrid">
-      <div class="infobox">
-        <div class="k">앱 버전</div>
-        <div class="v" id="infoVersion">-</div>
-      </div>
-      <div class="infobox">
-        <div class="k">내 소유자 ID</div>
-        <div class="v" id="infoOwner">-</div>
-      </div>
-      <div class="infobox">
-        <div class="k">승인됨 / 제출됨</div>
-        <div class="v"><span id="infoApproved">0</span> / <span id="infoSubmitted">0</span></div>
-      </div>
-      <div class="infobox">
-        <div class="k">내 메모(거절 제외)</div>
-        <div class="v" id="infoMine">0</div>
-      </div>
-    </div>
-    <div class="infobox" style="margin-top:10px;">
-      <div class="k">사용 팁</div>
-      <div class="v">
-        • 더블클릭/더블탭: 현재 보드 위치에 새 메모 초안 만들기<br>
-        • 마우스 휠: 이동 · Ctrl + 휠: 확대/축소 · 트랙패드 핀치: 확대/축소<br>
-        • 방향키: 보드 이동 · 목록行 클릭: 해당 메모로 이동<br>
-        • 초안은 제출 후 수정/삭제 불가 (관리자가 승인 처리)
-      </div>
+    <h3>사용 팁</h3>
+    <div class="infobox">
+      • 더블클릭/더블탭: 현재 보드 위치에 새 메모 초안 만들기<br>
+      • 마우스 휠: 이동 · Ctrl + 휠: 확대/축소 · 트랙패드 핀치: 확대/축소<br>
+      • 방향키: 보드 이동 · 목록 행 클릭: 해당 메모로 이동<br>
+      • 초안은 제출 후 수정/삭제 불가 (관리자가 승인 처리)
     </div>
   </div>
 
@@ -257,10 +223,14 @@
   </aside>
 
   <script>
-    /* ==========================================================
-     * 🔧 GitHub 설정: 제목(기본/라인2) 전용 폰트
-     *    라인1은 CSS에서 April16Promise로 직접 설정됩니다.
-     * ========================================================== */
+    /* ====== Config ====== */
+    const API = 'https://script.google.com/macros/s/AKfycbxLwwb5wzNLdIXXqDyYLN6BpTW50QDEXirXW8YcbIcyQedyGnI7SzbsgsnPsn0Ky7R1ow/exec';
+    const NOTE = { W: 280, H: 280 };
+    const WORLD = { W: 30000, H: 30000 };
+    const BOUNDS = { W: 10000, H: 10000 };
+    const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
+
+    // 제목 폰트(라인2/기본) — 필요 시 교체 가능
     const GITHUB_SETTINGS = {
       titleFont: {
         enabled: true,
@@ -270,14 +240,6 @@
       }
     };
 
-    /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbz0XtGLqbawPlz28LZ4vWsSeklJcnPTDpwrimSkxrINWRCElqiPdoihYpDa1RxtUjmH_Q/exec'; // Apps Script /exec URL
-    const NOTE = { W: 280, H: 280 };
-    const WORLD = { W: 30000, H: 30000 };
-    const BOUNDS = { W: 10000, H: 10000 };
-    const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
-
-    // 제목 한 줄 전환 임계값(px)
     const TITLE_ONE_LINE_BREAKPOINT = 1200;
 
     /* ====== State ====== */
@@ -299,17 +261,11 @@
     const $zoomRangeTop = document.getElementById('zoomRangeTop');
     const $btnNew = document.getElementById('btnNew');
     const $btnGo  = document.getElementById('btnGo');
-    const $btnDel = document.getElementById('btnDel');
+    an = document.getElementById('btnDel');
 
     const $infoPanel = document.getElementById('infoPanel');
     const $infoBtn   = document.getElementById('infoTop');
     const $infoClose = document.getElementById('infoClose');
-
-    const $infoVersion = document.getElementById('infoVersion');
-    const $infoOwner   = document.getElementById('infoOwner');
-    const $infoApproved= document.getElementById('infoApproved');
-    const $infoSubmitted=document.getElementById('infoSubmitted');
-    const $infoMine    = document.getElementById('infoMine');
 
     const $miniWrap = document.getElementById('miniWrap');
     const $minimap = document.getElementById('minimap');
@@ -321,13 +277,13 @@
 
     /* ====== Boot ====== */
     (async function init(){
-      applyGithubTitleFont_();  // 라인2/기본 폰트 주입
+      applyGithubTitleFont_();
       recalcTopbarHeight_();
       await bootstrap();
       bindUI();
       renderAll();
-      evaluateTitleLayout();   // 폭에 따라 1줄/2줄 결정
-      fitTitle();              // 자동 피팅
+      evaluateTitleLayout();
+      fitTitle();
       focusWorldPoint({ x: 5000, y: 5000 });
       updateTopbarActions();
       window.addEventListener('resize', onResize);
@@ -342,7 +298,6 @@
       }
     })();
 
-    /* === (라인2/기본) 폰트 적용 === */
     function applyGithubTitleFont_(){
       const cfg = GITHUB_SETTINGS && GITHUB_SETTINGS.titleFont;
       if (!cfg || !cfg.enabled || !cfg.name || !cfg.url) return;
@@ -393,11 +348,10 @@
       const s = j.settings.values;
       state.settings = j.settings;
 
-      // 제목 파트 저장
       const line1 = toStr(s.screenTitleLine1 || s.screenTitle || '온라인 포스트잇 게시판');
       const line2 = toStr(s.screenTitleLine2 || '');
       state.titleParts = { l1: line1, l2: line2 };
-      renderTitleDOM(); // 현재 모드에 맞춰 DOM 구성
+      renderTitleDOM();
 
       document.title = toStr(s.pageTitle || line1);
       setVar('--title-align', s.titleAlign || 'center');
@@ -434,24 +388,20 @@
       evaluateTitleLayout();
       fitTitle();
       recalcTopbarHeight_();
-
-      // Info 패널 데이터 초기화
-      updateInfoPanelData();
     }
 
     /* ====== 제목 DOM & 레이아웃 ====== */
     function renderTitleDOM(){
       const { l1, l2 } = state.titleParts;
       if (state.titleOneLine && l2){
-        // ⬇️ 중간 점(·) 제거, 공백으로 연결
-        $title.innerHTML = `
+        document.getElementById('title').innerHTML = `
           <div class="lineCombined">
             <span class="p1">${escapeHtml(l1)}</span>
             <span class="p2"> ${escapeHtml(l2)}</span>
           </div>
         `;
       } else {
-        $title.innerHTML = `
+        document.getElementById('title').innerHTML = `
           <div class="line1">${escapeHtml(l1)}</div>
           ${l2 ? `<div class="line2">${escapeHtml(l2)}</div>` : ''}
         `;
@@ -460,7 +410,7 @@
 
     function evaluateTitleLayout(){
       const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-      const wantOne = (vw >= TITLE_ONE_LINE_BREAKPOINT) && !!state.titleParts.l2.trim();
+      const wantOne = (vw >= ${TITLE_ONE_LINE_BREAKPOINT}) && !!state.titleParts.l2.trim();
       if (wantOne !== state.titleOneLine){
         state.titleOneLine = wantOne;
         renderTitleDOM();
@@ -477,7 +427,7 @@
       document.getElementById('fitAllTop').onclick = fitAll;
       document.getElementById('capBoardTop').onclick = () => captureElem($board, 'board.png');
 
-      // ⬇️ Info 패널 토글
+      // Info 패널 토글
       $infoBtn.onclick = () => {
         if ($infoPanel.classList.contains('open')) closeInfoPanel();
         else openInfoPanel();
@@ -528,7 +478,6 @@
     }
 
     function openInfoPanel(){
-      updateInfoPanelData();
       $infoPanel.classList.add('open');
       $infoPanel.setAttribute('aria-hidden','false');
       $infoBtn.setAttribute('aria-expanded','true');
@@ -538,22 +487,11 @@
       $infoPanel.setAttribute('aria-hidden','true');
       $infoBtn.setAttribute('aria-expanded','false');
     }
-    function updateInfoPanelData(){
-      const ver = state.settings && state.settings.version ? state.settings.version : '-';
-      $infoVersion.textContent = ver;
-      $infoOwner.textContent = state.owner.slice(0,8) + '…';
-      const submitted = state.notes.filter(n => n.status === 'submitted').length;
-      const approved  = state.notes.filter(n => n.status === 'approved').length;
-      const mine = state.notes.filter(n => n.owner === state.owner && n.status !== 'rejected').length;
-      $infoSubmitted.textContent = String(submitted);
-      $infoApproved.textContent  = String(approved);
-      $infoMine.textContent      = String(mine);
-    }
 
     async function refreshList(){
       const url = `${API}?action=list&owner=${encodeURIComponent(state.owner)}`;
       const j = await (await fetch(url, {mode:'cors'})).json();
-      if (j.ok) { state.notes = (j.data || []).map(sanitizeNote); renderAll(); updateInfoPanelData(); }
+      if (j.ok) { state.notes = (j.data || []).map(sanitizeNote); renderAll(); }
     }
 
     /* ====== Rendering ====== */
@@ -666,7 +604,6 @@
       }
     }
 
-    /* ====== Title auto-fit ====== */
     function fitTitle(){
       const container = $title;
       if (!container) return;
@@ -749,7 +686,6 @@
           state.notes.push(sanitizeNote(newNote));
           state.draft = null; localStorage.removeItem('mn_draft');
           renderAll();
-          updateInfoPanelData();
           refreshList();
         }catch(err){
           alert('네트워크 오류로 제출에 실패했습니다.\n(웹앱 배포 권한 또는 CORS 설정을 확인하세요)');
@@ -777,7 +713,7 @@
       focusWorldPoint(center);
     }
 
-    function clearDraft(){ state.draft = null; localStorage.removeItem('mn_draft'); renderAll(); updateTopbarActions(); updateInfoPanelData(); }
+    function clearDraft(){ state.draft = null; localStorage.removeItem('mn_draft'); renderAll(); updateTopbarActions(); }
     function saveDraft_(d){ localStorage.setItem('mn_draft', JSON.stringify(d)); updateTopbarActions(); }
     function loadDraft_(){ try{ return JSON.parse(localStorage.getItem('mn_draft')||'null'); }catch(e){ return null; } }
 
@@ -1108,9 +1044,9 @@
 
     function updateTopbarActions(){
       const hasDraft = !!state.draft;
-      $btnNew.style.display = hasDraft ? 'none' : '';
-      $btnGo.style.display  = hasDraft ? '' : 'none';
-      $btnDel.style.display = hasDraft ? '' : 'none';
+      document.getElementById('btnNew').style.display = hasDraft ? 'none' : '';
+      document.getElementById('btnGo').style.display  = hasDraft ? '' : 'none';
+      document.getElementById('btnDel').style.display = hasDraft ? '' : 'none';
     }
 
     function enableDrag(el, ondrag, handleSelector){
