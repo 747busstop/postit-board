@@ -40,24 +40,17 @@
     }
 
     .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; letter-spacing:.2px; overflow:hidden; }
-    .title .line1,
-    .title .line2{
-      font-size: var(--title-font-px);
-      line-height:1.1;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .title .line1{ color: var(--title-line1-color, inherit); font-family: 'April16Promise', var(--title-font-family); }
-    .title .line2{ color: var(--title-line2-color, inherit); font-family: var(--title-font-family); margin-top:2px; font-weight:600; opacity:.95; }
-
-    .title .lineCombined{
+    .title .line1, .title .line2, .title .lineCombined{
       font-size: var(--title-font-px);
       line-height:1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    .title .line1{ color: var(--title-line1-color, inherit); font-family: 'April16Promise', var(--title-font-family); }
+    .title .line2{ color: var(--title-line2-color, inherit); font-family: var(--title-font-family); margin-top:2px; font-weight:600; opacity:.95; }
     .title .lineCombined .p1{ color: var(--title-line1-color, inherit); font-weight:700; font-family: 'April16Promise', var(--title-font-family); }
     .title .lineCombined .p2{ color: var(--title-line2-color, inherit); font-weight:600; opacity:.95; font-family: var(--title-font-family); }
 
     .iconbtn, .btn{ background:#1a1f27; border:1px solid #252b35; color:#d9e3f0; padding:8px 12px; border-radius:10px; min-width:44px; min-height:36px; }
-    .right-actions{ display:flex; gap:8px; justify-self:end; }
+    .right-actions{ display:flex; gap:8px; justify-self:end; flex-wrap:wrap; }
     .btn.primary{ background:#2563eb; border-color:#2563eb; color:#fff; }
 
     .toolbar{
@@ -65,7 +58,7 @@
       border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(4px); z-index:60;
     }
     .toolbar .zoomwrap{ flex:1; display:flex; justify-content:center; }
-    .toolbar .group{ display:flex; gap:8px; align-items:center; }
+    .toolbar .group{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .toolbar input[type="range"]{ width: 180px; }
     @media (max-width: 420px){ .toolbar input[type="range"]{ width:120px; } }
 
@@ -78,26 +71,6 @@
     .panel.right{ left:auto; right:0; border-right:none; border-left:1px solid #1f2430; transform: translateX(calc(var(--panel-x, 100%))); }
     .panel.open{ --panel-x: 0%; }
     .panel h3{ margin:6px 0 8px; font-size:14px; color:#b7c2cf; }
-
-    /* === Info 패널(블라인드 다운) === */
-    .infopanel{
-      position:fixed; left:0; right:0; top:var(--topbar-h);
-      background:#0b0e13f2; border-bottom:1px solid #1f2430;
-      box-shadow:0 10px 24px rgba(0,0,0,.35);
-      transform: translateY(-110%);
-      transition: transform .28s ease;
-      z-index: 1200; /* ⬅️ 사이드 패널(1000)보다 높여 X 버튼 가림 방지 */
-      padding: 14px 16px 16px;
-      pointer-events: none;
-    }
-    .infopanel.open{ transform: translateY(0); pointer-events:auto; }
-    .infopanel .close{
-      position:absolute; top:10px; right:12px;
-      background:#1a1f27; border:1px solid #2a3140; color:#e8eaed;
-      border-radius:10px; padding:6px 10px;
-    }
-    .infopanel h3{ margin:0 0 8px; font-size:16px; color:#c9d5e8; }
-    .infobox{ background:#0e131b; border:1px solid #1f2a3a; border-radius:12px; padding:10px; }
 
     .table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:auto; }
     .table th, .table td{ border-bottom:1px solid #273040; padding:8px; text-align:left; vertical-align:top; }
@@ -164,6 +137,27 @@
       box-shadow:0 6px 16px rgba(0,0,0,.25);
     }
     .minimap canvas{ width:100%; height:100%; display:block; }
+
+    /* ===== Info Overlay ===== */
+    .overlay{
+      position:absolute; inset:0; z-index:2000; display:none;
+      background:#0b0e13f5; border-left:1px solid #1f2430; border-right:1px solid #1f2430;
+      /* .main 안에서만 꽉 차도록 (툴바/탑바 위로는 안 올라감) */
+    }
+    .overlay.open{ display:block; }
+    .overlay .inner{
+      position:absolute; inset:0; overflow:auto; padding:20px 20px 28px;
+    }
+    .overlay .close{
+      position:absolute; right:10px; top:10px;
+      background:#1a1f27; border:1px solid #252b35; color:#fff; border-radius:10px; padding:8px 12px;
+    }
+    .overlay h2{ margin:8px 0 12px; font-size:18px; }
+    .kv{ display:grid; grid-template-columns:120px 1fr; gap:8px 12px; max-width:800px; margin-bottom:18px; }
+    .card{ background:#0f141c; border:1px solid #1f2430; border-radius:12px; padding:12px; max-width:880px; }
+    .card h3{ margin:0 0 8px; font-size:15px; color:#b7c2cf; }
+    .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
+    .tips li{ margin:6px 0; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 </head>
@@ -171,7 +165,7 @@
   <div class="app">
     <div class="topbar" id="topbar">
       <button id="btnPanel" class="iconbtn" title="리스트" aria-label="리스트">🗂️</button>
-      <div class="title" id="title"></div>
+      <div class="title" id="title"><!-- JS에서 채움 --></div>
       <div class="right-actions">
         <button id="btnNew" class="btn primary" title="새 메모" aria-label="새 메모">＋</button>
         <button id="btnGo"  class="btn" style="display:none;" title="작성중으로 이동" aria-label="작성중으로 이동">🧭</button>
@@ -187,7 +181,8 @@
           <button id="zoomInTop" class="btn" title="확대" aria-label="확대">＋</button>
           <button id="fitAllTop" class="btn" title="전체 보기" aria-label="전체 보기">⤢</button>
           <button id="capBoardTop" class="btn" title="보드 캡처" aria-label="보드 캡처">📷</button>
-          <button id="infoTop" class="btn" title="정보 패널" aria-expanded="false" aria-controls="infoPanel">ℹ️</button>
+          <!-- ⬇️ 요청: 캡처 버튼 옆 Info 버튼 추가 -->
+          <button id="infoTop" class="btn" title="안내/도움말" aria-label="안내/도움말">ℹ️</button>
         </div>
       </div>
     </div>
@@ -196,19 +191,17 @@
       <div class="board" id="board">
         <div class="world" id="world"></div>
       </div>
-      <div class="minimap" id="miniWrap"><canvas id="minimap"></canvas></div>
-    </div>
-  </div>
 
-  <!-- 간결한 INFO 패널: 사용 팁만 표기 -->
-  <div id="infoPanel" class="infopanel" aria-hidden="true">
-    <button id="infoClose" class="iconbtn close" title="닫기" aria-label="닫기">✕</button>
-    <h3>사용 팁</h3>
-    <div class="infobox">
-      • 더블클릭/더블탭: 현재 보드 위치에 새 메모 초안 만들기<br>
-      • 마우스 휠: 이동 · Ctrl + 휠: 확대/축소 · 트랙패드 핀치: 확대/축소<br>
-      • 방향키: 보드 이동 · 목록 행 클릭: 해당 메모로 이동<br>
-      • 초안은 제출 후 수정/삭제 불가 (관리자가 승인 처리)
+      <!-- Minimap -->
+      <div class="minimap" id="miniWrap"><canvas id="minimap"></canvas></div>
+
+      <!-- ⬇️ 요청: 게시판 영역을 가득 덮는 Info 오버레이 -->
+      <div class="overlay" id="infoOverlay" aria-hidden="true" role="dialog" aria-label="안내">
+        <button class="close" id="infoClose" aria-label="닫기">✕</button>
+        <div class="inner" id="infoBody">
+          <!-- JS에서 내용 렌더링 -->
+        </div>
+      </div>
     </div>
   </div>
 
@@ -223,14 +216,9 @@
   </aside>
 
   <script>
-    /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbxLwwb5wzNLdIXXqDyYLN6BpTW50QDEXirXW8YcbIcyQedyGnI7SzbsgsnPsn0Ky7R1ow/exec';
-    const NOTE = { W: 280, H: 280 };
-    const WORLD = { W: 30000, H: 30000 };
-    const BOUNDS = { W: 10000, H: 10000 };
-    const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
-
-    // 제목 폰트(라인2/기본) — 필요 시 교체 가능
+    /* ==========================================================
+     * GitHub 설정: 제목(기본/라인2) 전용 폰트
+     * ========================================================== */
     const GITHUB_SETTINGS = {
       titleFont: {
         enabled: true,
@@ -240,12 +228,20 @@
       }
     };
 
+    /* ====== Config ====== */
+    const API = 'https://script.google.com/macros/s/AKfycbzAo4eiM4Iide3jDR-DEH0HdcS296TizLN2fDeTmrgGNzpkW8-PWk4BQZpVZmAFtFNiWg/exec'; // Apps Script /exec URL
+    const NOTE = { W: 280, H: 280 };
+    const WORLD = { W: 30000, H: 30000 };
+    const BOUNDS = { W: 10000, H: 10000 };
+    const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
+
+    // 제목 한 줄 전환 임계값(px)
     const TITLE_ONE_LINE_BREAKPOINT = 1200;
 
-    /* ====== State ====== */
+    /* ====== State / Elements ====== */
     const state = {
-      owner: getOrSetOwner_(), settings: null, notes: [],
-      draft: loadDraft_(), panelOpen: false, panelDock: 'left', panPrev: null,
+      owner: getOrSetOwner_(), settings: null, notes: [], draft: loadDraft_(),
+      panelOpen: false, panelDock: 'left', panPrev: null,
       zMap: {}, zCounters: { submitted:0, approved:0 }, lastTapTime: 0, lastTapPos: {x:0,y:0},
       titleParts: { l1:'', l2:'' }, titleOneLine: false
     };
@@ -257,19 +253,17 @@
     const $listBody  = document.getElementById('list');
     const $world = document.getElementById('world');
     const $board = document.getElementById('board');
+    const $miniWrap = document.getElementById('miniWrap');
+    const $minimap = document.getElementById('minimap');
 
     const $zoomRangeTop = document.getElementById('zoomRangeTop');
     const $btnNew = document.getElementById('btnNew');
     const $btnGo  = document.getElementById('btnGo');
-    an = document.getElementById('btnDel');
-
-    const $infoPanel = document.getElementById('infoPanel');
-    const $infoBtn   = document.getElementById('infoTop');
+    const $btnDel = document.getElementById('btnDel');
+    const $btnInfoTop = document.getElementById('infoTop');
+    const $infoOverlay = document.getElementById('infoOverlay');
     const $infoClose = document.getElementById('infoClose');
-
-    const $miniWrap = document.getElementById('miniWrap');
-    const $minimap = document.getElementById('minimap');
-    const mm = { dragging:false };
+    const $infoBody = document.getElementById('infoBody');
 
     const inertia = { raf:0, vx:0, vy:0, damping:0.985 };
     const pan = { raf:0, dx:0, dy:0, lastVX:0, lastVY:0, lastT:0 };
@@ -298,6 +292,7 @@
       }
     })();
 
+    /* === (라인2/기본) 폰트 적용 === */
     function applyGithubTitleFont_(){
       const cfg = GITHUB_SETTINGS && GITHUB_SETTINGS.titleFont;
       if (!cfg || !cfg.enabled || !cfg.name || !cfg.url) return;
@@ -348,6 +343,7 @@
       const s = j.settings.values;
       state.settings = j.settings;
 
+      // 제목
       const line1 = toStr(s.screenTitleLine1 || s.screenTitle || '온라인 포스트잇 게시판');
       const line2 = toStr(s.screenTitleLine2 || '');
       state.titleParts = { l1: line1, l2: line2 };
@@ -394,14 +390,14 @@
     function renderTitleDOM(){
       const { l1, l2 } = state.titleParts;
       if (state.titleOneLine && l2){
-        document.getElementById('title').innerHTML = `
+        $title.innerHTML = `
           <div class="lineCombined">
             <span class="p1">${escapeHtml(l1)}</span>
             <span class="p2"> ${escapeHtml(l2)}</span>
           </div>
         `;
       } else {
-        document.getElementById('title').innerHTML = `
+        $title.innerHTML = `
           <div class="line1">${escapeHtml(l1)}</div>
           ${l2 ? `<div class="line2">${escapeHtml(l2)}</div>` : ''}
         `;
@@ -410,14 +406,14 @@
 
     function evaluateTitleLayout(){
       const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-      const wantOne = (vw >= ${TITLE_ONE_LINE_BREAKPOINT}) && !!state.titleParts.l2.trim();
+      const wantOne = (vw >= TITLE_ONE_LINE_BREAKPOINT) && !!state.titleParts.l2.trim();
       if (wantOne !== state.titleOneLine){
         state.titleOneLine = wantOne;
         renderTitleDOM();
       }
     }
 
-    /* ====== UI ====== */
+    /* ====== UI 바인딩 ====== */
     function bindUI(){
       document.getElementById('btnPanel').onclick = togglePanel;
 
@@ -427,13 +423,6 @@
       document.getElementById('fitAllTop').onclick = fitAll;
       document.getElementById('capBoardTop').onclick = () => captureElem($board, 'board.png');
 
-      // Info 패널 토글
-      $infoBtn.onclick = () => {
-        if ($infoPanel.classList.contains('open')) closeInfoPanel();
-        else openInfoPanel();
-      };
-      $infoClose.onclick = closeInfoPanel;
-
       $btnNew.onclick = () => {
         if (state.draft) { centerOnDraft(1.0); return; }
         const wc = worldCenter();
@@ -441,6 +430,12 @@
       };
       $btnDel.onclick = clearDraft;
       $btnGo.onclick  = () => centerOnDraft(1.0);
+
+      // ⬇️ Info 버튼: 오버레이 열기
+      $btnInfoTop.onclick = () => { renderInfoOverlay(); openInfo(); };
+      $infoClose.onclick = closeInfo;
+      // 오버레이 배경 클릭 시 닫기(우발 클릭 방지: close 버튼 외 영역 클릭 시 닫지 않음)
+      $infoOverlay.addEventListener('click', (e)=>{ if (e.target === $infoOverlay) closeInfo(); });
 
       $board.addEventListener('pointerdown', onPointerDown, {passive:false});
       $board.addEventListener('pointermove', onPointerMove,  {passive:false});
@@ -458,34 +453,21 @@
         const ae = document.activeElement;
         const isEditing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
         if (isEditing) return;
-        if (e.key === 'Escape' && state.panelOpen) togglePanel();
+
+        if (e.key === 'Escape') { // 패널/오버레이 닫기 우선
+          if ($infoOverlay.classList.contains('open')) { closeInfo(); return; }
+          if (state.panelOpen) { togglePanel(); return; }
+        }
         if (e.key === 'ArrowLeft')  { CAMERA.x += 80; setCamVars_(); }
         if (e.key === 'ArrowRight') { CAMERA.x -= 80; setCamVars_(); }
         if (e.key === 'ArrowUp')    { CAMERA.y += 80; setCamVars_(); }
         if (e.key === 'ArrowDown')  { CAMERA.y -= 80; setCamVars_(); }
       });
-
-      $miniWrap.addEventListener('pointerdown', (e) => { mm.dragging = true; goMinimap(e); e.preventDefault(); });
-      $miniWrap.addEventListener('pointermove', (e) => { if (mm.dragging) { goMinimap(e); e.preventDefault(); } });
-      const mmEnd = () => { mm.dragging = false; };
-      $miniWrap.addEventListener('pointerup', mmEnd);
-      $miniWrap.addEventListener('pointercancel', mmEnd);
     }
 
     function togglePanel(){
       state.panelOpen = !state.panelOpen;
       $panel.classList.toggle('open', state.panelOpen);
-    }
-
-    function openInfoPanel(){
-      $infoPanel.classList.add('open');
-      $infoPanel.setAttribute('aria-hidden','false');
-      $infoBtn.setAttribute('aria-expanded','true');
-    }
-    function closeInfoPanel(){
-      $infoPanel.classList.remove('open');
-      $infoPanel.setAttribute('aria-hidden','true');
-      $infoBtn.setAttribute('aria-expanded','false');
     }
 
     async function refreshList(){
@@ -515,7 +497,7 @@
         if (state.zMap[n.id]) el.style.zIndex = state.zMap[n.id];
 
         el.innerHTML = `
-          <div class="nick">${escapeHtml(toStr(nickOrAnon(n)))}${n.status==='submitted'?' <small style="color:#555">· 승인대기</small>':''}</div>
+          <div class="nick">${escapeHtml(toStr(n.nick || '익명'))}${n.status==='submitted'?' <small style="color:#555">· 승인대기</small>':''}</div>
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
 
@@ -604,6 +586,51 @@
       }
     }
 
+    /* ====== Info Overlay ====== */
+    function openInfo(){ $infoOverlay.classList.add('open'); $infoOverlay.setAttribute('aria-hidden','false'); }
+    function closeInfo(){ $infoOverlay.classList.remove('open'); $infoOverlay.setAttribute('aria-hidden','true'); }
+    function renderInfoOverlay(){
+      const title1 = state.titleParts.l1 || '';
+      const title2 = state.titleParts.l2 || '';
+      const ver = (state.settings && state.settings.version) || '—';
+      const owner = state.owner.slice(0,8) + '…';
+      const counts = {
+        total: state.notes.length,
+        approved: state.notes.filter(n=>n.status==='approved').length,
+        submitted: state.notes.filter(n=>n.status==='submitted').length
+      };
+      $infoBody.innerHTML = `
+        <h2>안내 / 도움말</h2>
+
+        <div class="kv card" style="margin-bottom:16px">
+          <div>페이지 제목</div><div>${escapeHtml(title1)}${title2? ' · ' + escapeHtml(title2):''}</div>
+          <div>버전</div><div class="mono">${escapeHtml(String(ver))}</div>
+          <div>내 기기 식별자</div><div class="mono">${escapeHtml(owner)}</div>
+          <div>메모 수</div><div>총 ${counts.total}개 (승인 ${counts.approved} / 대기 ${counts.submitted})</div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3>사용 방법</h3>
+          <ul class="tips">
+            <li>보드 빈 공간을 <b>더블클릭</b>하면 새 메모 작성창이 생성됩니다.</li>
+            <li>작성창의 <b>십자 손잡이</b>를 드래그하여 위치를 조정하세요.</li>
+            <li><b>✓ 제출</b> 후에는 <b>수정/삭제가 불가</b>합니다. (관리자 승인 시 공개)</li>
+            <li>마우스 휠로 <b>이동/확대/축소</b> (Ctrl+휠=줌, Shift+휠=수평이동), 방향키 이동도 지원합니다.</li>
+            <li>우측 하단 <b>미니맵</b>을 드래그해 빠르게 이동할 수 있습니다.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>단축키</h3>
+          <ul class="tips">
+            <li><b>Esc</b>: Info 닫기 → 리스트 닫기(열려있다면)</li>
+            <li><b>← ↑ → ↓</b>: 보드 이동</li>
+          </ul>
+        </div>
+      `;
+    }
+
+    /* ====== Title auto-fit ====== */
     function fitTitle(){
       const container = $title;
       if (!container) return;
@@ -960,6 +987,12 @@
       const wx = x / s, wy = y / s;
       focusWorldPoint({ x: wx, y: wy });
     }
+    $miniWrap.addEventListener('pointerdown', (e) => { mm.dragging = true; goMinimap(e); e.preventDefault(); });
+    $miniWrap.addEventListener('pointermove', (e) => { if (mm.dragging) { goMinimap(e); e.preventDefault(); } });
+    const mm = { dragging:false };
+    const mmEnd = () => { mm.dragging = false; };
+    $miniWrap.addEventListener('pointerup', mmEnd);
+    $miniWrap.addEventListener('pointercancel', mmEnd);
 
     /* ====== Capture ====== */
     async function captureElem(el, filename){
@@ -1044,9 +1077,9 @@
 
     function updateTopbarActions(){
       const hasDraft = !!state.draft;
-      document.getElementById('btnNew').style.display = hasDraft ? 'none' : '';
-      document.getElementById('btnGo').style.display  = hasDraft ? '' : 'none';
-      document.getElementById('btnDel').style.display = hasDraft ? '' : 'none';
+      $btnNew.style.display = hasDraft ? 'none' : '';
+      $btnGo.style.display  = hasDraft ? '' : 'none';
+      $btnDel.style.display = hasDraft ? '' : 'none';
     }
 
     function enableDrag(el, ondrag, handleSelector){
