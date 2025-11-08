@@ -223,9 +223,6 @@
   </aside>
 
   <script>
-    /* NOTE: YouTube 댓글은 서버(Code.gs)에서 가져와 시트에 SUBMITTED로 추가됩니다.
-             이 페이지는 승인된(approved) 항목만 그대로 표시합니다. */
-
     const GITHUB_SETTINGS = {
       titleFont: {
         enabled: true,
@@ -235,17 +232,14 @@
       }
     };
 
-    /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbwGlMfdKKW__NB9KyMQb2rk3s7xqUT35QSbgyDwG46JSvz0VNPUcgwATi7b12hmDEjW2Q/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbzdm5X_BeWjfGW-4YmernTwe-r-yS75ZI7moeJMFruFgdhJDJr0zr4Z1x7cs_DsyWu_Sw/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
 
-    // 제목 한 줄 전환 임계값(px)
     const TITLE_ONE_LINE_BREAKPOINT = 1200;
 
-    /* ====== State / Elements ====== */
     const state = {
       owner: getOrSetOwner_(), settings: null, notes: [], draft: loadDraft_(),
       panelOpen: false, panelDock: 'left', panPrev: null,
@@ -276,7 +270,6 @@
     const pan = { raf:0, dx:0, dy:0, lastVX:0, lastVY:0, lastT:0 };
     function stopInertia(){ if (inertia.raf){ cancelAnimationFrame(inertia.raf); inertia.raf=0; } inertia.vx=0; inertia.vy=0; }
 
-    /* ====== Boot ====== */
     (async function init(){
       applyGithubTitleFont_();
       recalcTopbarHeight_();
@@ -298,12 +291,10 @@
         ro.observe($title);
       }
 
-      /* ⬇️ 첫 접속 시 Info 자동 오픈 */
       renderInfoOverlay();
       openInfo();
     })();
 
-    /* === (라인2/기본) 폰트 적용 === */
     function applyGithubTitleFont_(){
       const cfg = GITHUB_SETTINGS && GITHUB_SETTINGS.titleFont;
       if (!cfg || !cfg.enabled || !cfg.name || !cfg.url) return;
@@ -354,7 +345,6 @@
       const s = j.settings.values;
       state.settings = j.settings;
 
-      // 제목
       const line1 = toStr(s.screenTitleLine1 || s.screenTitle || '온라인 포스트잇 게시판');
       const line2 = toStr(s.screenTitleLine2 || '');
       state.titleParts = { l1: line1, l2: line2 };
@@ -397,7 +387,6 @@
       recalcTopbarHeight_();
     }
 
-    /* ====== 제목 DOM & 레이아웃 ====== */
     function renderTitleDOM(){
       const { l1, l2 } = state.titleParts;
       if (state.titleOneLine && l2){
@@ -417,14 +406,13 @@
 
     function evaluateTitleLayout(){
       const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-      const wantOne = (vw >= TITLE_ONE_LINE_BREAKPOINT) && !!state.titleParts.l2.trim();
+      const wantOne = (vw >= 1200) && !!state.titleParts.l2.trim();
       if (wantOne !== state.titleOneLine){
         state.titleOneLine = wantOne;
         renderTitleDOM();
       }
     }
 
-    /* ====== UI 바인딩 ====== */
     function bindUI(){
       document.getElementById('btnPanel').onclick = togglePanel;
 
@@ -441,7 +429,6 @@
       $btnDel.onclick = clearDraft;
       $btnGo.onclick  = () => centerOnDraft(1.0);
 
-      // Info 버튼
       $btnInfoTop.onclick = () => { renderInfoOverlay(); openInfo(); };
 
       const closeNow = (e)=>{ e.preventDefault(); e.stopPropagation(); closeInfo(); };
@@ -714,6 +701,7 @@
       $submit.onclick = async () => {
         if (!d.nick) { d.nick = '익명'; $nick.value = '익명'; }
         if (!d.text) { alert('내용을 입력하세요.'); return; }
+
         if (!confirm('이 내용으로 제출하시겠습니까? 제출 후에는 수정/삭제가 불가합니다.')) return;
 
         $submit.disabled = true; $del.disabled = true; $submit.textContent = '✓';
@@ -1006,6 +994,7 @@
     function mdToHtml(md){
       const esc = (s)=> String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
       const lines = String(md||'').replace(/\r\n?/g,'\n').split('\n');
+
       const inline = (t)=>{
         t = esc(t);
         t = t.replace(/`([^`]+?)`/g, '<code>$1</code>');
@@ -1014,8 +1003,10 @@
         t = t.replace(/_([^_]+?)_/g, '<em>$1</em>');
         return t;
       };
+
       let html = '';
       let inList = false;
+
       const flushList = ()=>{ if (inList){ html += '</ul>'; inList=false; } };
 
       for (let raw of lines){
