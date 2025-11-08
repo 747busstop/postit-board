@@ -56,11 +56,12 @@
     .toolbar{
       display:flex; align-items:center; gap:12px; padding:8px 12px;
       border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(4px); z-index:60;
+      justify-content: space-between;
     }
-    .toolbar .zoomwrap{ flex:1; display:flex; justify-content:center; }
+    .toolbar .zoomwrap{ display:flex; justify-content:center; align-items:center; gap:8px; }
     .toolbar .group{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .toolbar input[type="range"]{ width: 180px; }
-    @media (max-width: 420px){ .toolbar input[type="range"]{ width:120px; } }
+    @media (max-width: 520px){ .toolbar input[type="range"]{ width:120px; } }
 
     .panel{
       position:fixed; top:var(--topbar-h); bottom:0; width:var(--panel-width);
@@ -160,12 +161,10 @@
     .kv{ display:grid; grid-template-columns:120px 1fr; gap:8px 12px; max-width:800px; margin-bottom:18px; }
     .card{ background:#0f141c; border:1px solid #1f2430; border-radius:12px; padding:12px; max-width:880px; }
     .card h3{ margin:0 0 8px; font-size:15px; color:#b7c2cf; }
-    /* ⬇️ 링크가 제목(h3) 안에 있어도 잘 보이게 */
     .card h3 a{ color:#7aa2ff; text-decoration:underline; }
     .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
     .tips li{ margin:6px 0; }
 
-    /* 마크다운 렌더링 기본 스타일 */
     .md p{ margin: 8px 0; }
     .md ul{ margin: 8px 0 8px 1.2rem; padding: 0; }
     .md li{ margin: 4px 0; }
@@ -195,6 +194,11 @@
           <button id="capBoardTop" class="btn" title="보드 캡처" aria-label="보드 캡처">📷</button>
           <button id="infoTop" class="btn" title="안내/도움말" aria-label="안내/도움말">ℹ️</button>
         </div>
+      </div>
+
+      <!-- [신규] 유튜브 가져오기 컨트롤 -->
+      <div class="group" id="ytGroup" style="display:none">
+        <button id="ytBtn" class="btn" title="유튜브 댓글 가져오기" aria-label="유튜브 댓글 가져오기">📥 YT</button>
       </div>
     </div>
 
@@ -238,13 +242,12 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbyTS-VR7s4XT0FYAr-Drs0aYO84dXrHd6tDinQQLumyfYpK9RnQcvQASqjsjY5LDf2PiQ/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbyxt6VphARwNvve4UrYjUBfHWV4o-lQp3m4XaiZ-A0RZ0i-B79jDqKfXK7ytVz31aTFzA/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
 
-    // 제목 한 줄 전환 임계값(px)
     const TITLE_ONE_LINE_BREAKPOINT = 1200;
 
     /* ====== State / Elements ====== */
@@ -274,6 +277,10 @@
     const $infoClose = document.getElementById('infoClose');
     const $infoBody = document.getElementById('infoBody');
 
+    // [신규] YT 버튼 그룹
+    const $ytGroup = document.getElementById('ytGroup');
+    const $ytBtn = document.getElementById('ytBtn');
+
     const inertia = { raf:0, vx:0, vy:0, damping:0.985 };
     const pan = { raf:0, dx:0, dy:0, lastVX:0, lastVY:0, lastT:0 };
     function stopInertia(){ if (inertia.raf){ cancelAnimationFrame(inertia.raf); inertia.raf=0; } inertia.vx=0; inertia.vy=0; }
@@ -300,9 +307,15 @@
         ro.observe($title);
       }
 
-      /* ⬇️ 첫 접속 시 Info 자동 오픈 */
+      // 첫 접속 시 Info 자동 오픈
       renderInfoOverlay();
       openInfo();
+
+      // [신규] ytImportEnabled 이면 버튼 노출
+      const s = state.settings && state.settings.values || {};
+      if (String(s.ytImportEnabled || 'No').toLowerCase() === 'yes') {
+        $ytGroup.style.display = '';
+      }
     })();
 
     /* === (라인2/기본) 폰트 적용 === */
@@ -443,25 +456,18 @@
       $btnDel.onclick = clearDraft;
       $btnGo.onclick  = () => centerOnDraft(1.0);
 
-      // Info 버튼: 오버레이 열기
+      // Info 버튼
       $btnInfoTop.onclick = () => { renderInfoOverlay(); openInfo(); };
 
-      // 닫기 버튼: 포인터/터치/클릭 모두 지원
       const closeNow = (e)=>{ e.preventDefault(); e.stopPropagation(); closeInfo(); };
       ['pointerdown','touchstart','click'].forEach(evt=>{
         $infoClose.addEventListener(evt, closeNow, {passive:false});
       });
-
-      // 안전망: 문서 레벨 위임
       document.addEventListener('click', (e)=>{
         const btn = e.target.closest('#infoClose,[data-action="close-overlay"]');
         if (btn){ e.preventDefault(); closeInfo(); }
       });
-
-      // 오버레이 바깥 클릭 시 닫기
-      $infoOverlay.addEventListener('click', (e)=>{
-        if (e.target === $infoOverlay) closeInfo();
-      });
+      $infoOverlay.addEventListener('click', (e)=>{ if (e.target === $infoOverlay) closeInfo(); });
 
       $board.addEventListener('pointerdown', onPointerDown, {passive:false});
       $board.addEventListener('pointermove', onPointerMove,  {passive:false});
@@ -489,6 +495,43 @@
         if (e.key === 'ArrowUp')    { CAMERA.y += 80; setCamVars_(); }
         if (e.key === 'ArrowDown')  { CAMERA.y -= 80; setCamVars_(); }
       });
+
+      // [신규] 유튜브 댓글 가져오기
+      $ytBtn.onclick = async () => {
+        try{
+          const s = state.settings && state.settings.values || {};
+          if (String(s.ytImportEnabled || 'No').toLowerCase() !== 'yes') {
+            alert('유튜브 연동이 비활성화되어 있습니다. (settings.ytImportEnabled=Yes)');
+            return;
+          }
+          let vid = prompt('유튜브 영상 ID를 입력하세요', toStr(s.ytVideoId||'').trim());
+          if (vid == null) return;
+          vid = (vid||'').trim();
+          if (!vid) { alert('영상 ID가 필요합니다.'); return; }
+
+          let max = prompt('최대 가져올 댓글 수', toStr(s.ytMaxImport||'300').trim());
+          if (max == null) return;
+          max = Math.max(1, Math.min(10000, parseInt(max,10) || 300));
+
+          const fd = new URLSearchParams();
+          fd.set('action','ytImport');
+          fd.set('videoId', vid);
+          fd.set('max', String(max));
+
+          const res = await fetch(API, {
+            method:'POST',
+            body: fd,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }
+          });
+          const j = await res.json();
+          if (!j.ok) { alert('가져오기 실패: ' + (j.error||'unknown')); return; }
+
+          alert(`가져오기 완료\nvideoId=${j.videoId}\nimported=${j.imported}\nskipped=${j.skipped}\ntotalSeen=${j.totalSeen}`);
+          await refreshList();
+        }catch(err){
+          alert('가져오기 도중 오류가 발생했습니다.');
+        }
+      };
     }
 
     function togglePanel(){
@@ -622,7 +665,6 @@
       const usageTitle = toStr(s.infoUsageTitle || '사용 방법');
       const usageMd    = toStr(s.infoUsageMarkdown || '');
 
-      // [C] 오송 안내 섹션 설정 로드
       const osEnabled = String(s.infoOsongEnabled || 'Yes').toLowerCase() !== 'no';
       const osTitle   = toStr(s.infoOsongTitle || '747오송역정류장');
       const osBody    = toStr(s.infoOsongBody || '기억을 잇는 모두의 정류장🚏 오송참사를 기억하고, 우리 모두가 다치지 않는 내일을 그리기 위해 행동합니다.');
@@ -1022,16 +1064,11 @@
       const esc = (s)=> String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
       const lines = String(md||'').replace(/\r\n?/g,'\n').split('\n');
 
-      // Inline transforms: code, bold, italic, links
       const inline = (t)=>{
         t = esc(t);
-        // code `...`
         t = t.replace(/`([^`]+?)`/g, '<code>$1</code>');
-        // links [text](url)
         t = t.replace(/\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-        // bold **...**
         t = t.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
-        // italic _..._
         t = t.replace(/_([^_]+?)_/g, '<em>$1</em>');
         return t;
       };
