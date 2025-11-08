@@ -56,12 +56,11 @@
     .toolbar{
       display:flex; align-items:center; gap:12px; padding:8px 12px;
       border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(4px); z-index:60;
-      justify-content: space-between;
     }
-    .toolbar .zoomwrap{ display:flex; justify-content:center; align-items:center; gap:8px; }
+    .toolbar .zoomwrap{ flex:1; display:flex; justify-content:center; }
     .toolbar .group{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .toolbar input[type="range"]{ width: 180px; }
-    @media (max-width: 520px){ .toolbar input[type="range"]{ width:120px; } }
+    @media (max-width: 420px){ .toolbar input[type="range"]{ width:120px; } }
 
     .panel{
       position:fixed; top:var(--topbar-h); bottom:0; width:var(--panel-width);
@@ -195,11 +194,6 @@
           <button id="infoTop" class="btn" title="안내/도움말" aria-label="안내/도움말">ℹ️</button>
         </div>
       </div>
-
-      <!-- [신규] 유튜브 가져오기 컨트롤 -->
-      <div class="group" id="ytGroup" style="display:none">
-        <button id="ytBtn" class="btn" title="유튜브 댓글 가져오기" aria-label="유튜브 댓글 가져오기">📥 YT</button>
-      </div>
     </div>
 
     <div class="main" id="main">
@@ -229,9 +223,9 @@
   </aside>
 
   <script>
-    /* ==========================================================
-     * GitHub 설정: 제목(기본/라인2) 전용 폰트
-     * ========================================================== */
+    /* NOTE: YouTube 댓글은 서버(Code.gs)에서 가져와 시트에 SUBMITTED로 추가됩니다.
+             이 페이지는 승인된(approved) 항목만 그대로 표시합니다. */
+
     const GITHUB_SETTINGS = {
       titleFont: {
         enabled: true,
@@ -242,12 +236,13 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycbyxt6VphARwNvve4UrYjUBfHWV4o-lQp3m4XaiZ-A0RZ0i-B79jDqKfXK7ytVz31aTFzA/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbwGlMfdKKW__NB9KyMQb2rk3s7xqUT35QSbgyDwG46JSvz0VNPUcgwATi7b12hmDEjW2Q/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
 
+    // 제목 한 줄 전환 임계값(px)
     const TITLE_ONE_LINE_BREAKPOINT = 1200;
 
     /* ====== State / Elements ====== */
@@ -277,10 +272,6 @@
     const $infoClose = document.getElementById('infoClose');
     const $infoBody = document.getElementById('infoBody');
 
-    // [신규] YT 버튼 그룹
-    const $ytGroup = document.getElementById('ytGroup');
-    const $ytBtn = document.getElementById('ytBtn');
-
     const inertia = { raf:0, vx:0, vy:0, damping:0.985 };
     const pan = { raf:0, dx:0, dy:0, lastVX:0, lastVY:0, lastT:0 };
     function stopInertia(){ if (inertia.raf){ cancelAnimationFrame(inertia.raf); inertia.raf=0; } inertia.vx=0; inertia.vy=0; }
@@ -307,15 +298,9 @@
         ro.observe($title);
       }
 
-      // 첫 접속 시 Info 자동 오픈
+      /* ⬇️ 첫 접속 시 Info 자동 오픈 */
       renderInfoOverlay();
       openInfo();
-
-      // [신규] ytImportEnabled 이면 버튼 노출
-      const s = state.settings && state.settings.values || {};
-      if (String(s.ytImportEnabled || 'No').toLowerCase() === 'yes') {
-        $ytGroup.style.display = '';
-      }
     })();
 
     /* === (라인2/기본) 폰트 적용 === */
@@ -463,11 +448,15 @@
       ['pointerdown','touchstart','click'].forEach(evt=>{
         $infoClose.addEventListener(evt, closeNow, {passive:false});
       });
+
       document.addEventListener('click', (e)=>{
         const btn = e.target.closest('#infoClose,[data-action="close-overlay"]');
         if (btn){ e.preventDefault(); closeInfo(); }
       });
-      $infoOverlay.addEventListener('click', (e)=>{ if (e.target === $infoOverlay) closeInfo(); });
+
+      $infoOverlay.addEventListener('click', (e)=>{
+        if (e.target === $infoOverlay) closeInfo();
+      });
 
       $board.addEventListener('pointerdown', onPointerDown, {passive:false});
       $board.addEventListener('pointermove', onPointerMove,  {passive:false});
@@ -495,43 +484,6 @@
         if (e.key === 'ArrowUp')    { CAMERA.y += 80; setCamVars_(); }
         if (e.key === 'ArrowDown')  { CAMERA.y -= 80; setCamVars_(); }
       });
-
-      // [신규] 유튜브 댓글 가져오기
-      $ytBtn.onclick = async () => {
-        try{
-          const s = state.settings && state.settings.values || {};
-          if (String(s.ytImportEnabled || 'No').toLowerCase() !== 'yes') {
-            alert('유튜브 연동이 비활성화되어 있습니다. (settings.ytImportEnabled=Yes)');
-            return;
-          }
-          let vid = prompt('유튜브 영상 ID를 입력하세요', toStr(s.ytVideoId||'').trim());
-          if (vid == null) return;
-          vid = (vid||'').trim();
-          if (!vid) { alert('영상 ID가 필요합니다.'); return; }
-
-          let max = prompt('최대 가져올 댓글 수', toStr(s.ytMaxImport||'300').trim());
-          if (max == null) return;
-          max = Math.max(1, Math.min(10000, parseInt(max,10) || 300));
-
-          const fd = new URLSearchParams();
-          fd.set('action','ytImport');
-          fd.set('videoId', vid);
-          fd.set('max', String(max));
-
-          const res = await fetch(API, {
-            method:'POST',
-            body: fd,
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }
-          });
-          const j = await res.json();
-          if (!j.ok) { alert('가져오기 실패: ' + (j.error||'unknown')); return; }
-
-          alert(`가져오기 완료\nvideoId=${j.videoId}\nimported=${j.imported}\nskipped=${j.skipped}\ntotalSeen=${j.totalSeen}`);
-          await refreshList();
-        }catch(err){
-          alert('가져오기 도중 오류가 발생했습니다.');
-        }
-      };
     }
 
     function togglePanel(){
@@ -545,7 +497,6 @@
       if (j.ok) { state.notes = (j.data || []).map(sanitizeNote); renderAll(); }
     }
 
-    /* ====== Rendering ====== */
     function renderAll(){ renderNotes(); renderList(); updateTopbarActions(); updateMinimap(); }
 
     function renderNotes(){
@@ -655,7 +606,6 @@
       }
     }
 
-    /* ====== Info Overlay (시트 관리) ====== */
     function openInfo(){ $infoOverlay.classList.add('open'); $infoOverlay.setAttribute('aria-hidden','false'); }
     function closeInfo(){ $infoOverlay.classList.remove('open'); $infoOverlay.setAttribute('aria-hidden','true'); }
     function renderInfoOverlay(){
@@ -709,7 +659,6 @@
       `;
     }
 
-    /* ====== Title auto-fit ====== */
     function fitTitle(){
       const container = $title;
       if (!container) return;
@@ -742,7 +691,6 @@
       });
     }
 
-    /* ====== Draft ====== */
     function wireDraftForm_(root, d){
       const $nick = root.querySelector('#dNick');
       const $text = root.querySelector('#dText');
@@ -823,7 +771,6 @@
     function saveDraft_(d){ localStorage.setItem('mn_draft', JSON.stringify(d)); updateTopbarActions(); }
     function loadDraft_(){ try{ return JSON.parse(localStorage.getItem('mn_draft')||'null'); }catch(e){ return null; } }
 
-    /* ====== 카메라/좌표 ====== */
     function toWorld(cx, cy){
       const r = $board.getBoundingClientRect();
       const sx = cx - r.left, sy = cy - r.top;
@@ -860,7 +807,6 @@
     function updateCamera(x,y,scale){ CAMERA.x = x; CAMERA.y = y; CAMERA.scale = scale; $zoomRangeTop.value = CAMERA.scale; setCamVars_(); }
     function setCamVars_(){ setVar('--scale', CAMERA.scale); setVar('--cam-x', CAMERA.x+'px'); setVar('--cam-y', CAMERA.y+'px'); updateMinimap(); }
 
-    /* ====== Pan / Wheel / Pinch ====== */
     const pointers = new Map();
     const pinch = { active:false, lastDist:0, lastMid:{x:0,y:0} };
 
@@ -993,7 +939,6 @@
       }
     }
 
-    /* ====== Minimap ====== */
     function updateMinimap(){
       const ctx = $minimap.getContext('2d');
       const dpr = window.devicePixelRatio || 1;
@@ -1045,7 +990,6 @@
     $miniWrap.addEventListener('pointerup', mmEnd);
     $miniWrap.addEventListener('pointercancel', mmEnd);
 
-    /* ====== Capture ====== */
     async function captureElem(el, filename){
       try{
         if (!window.html2canvas) throw new Error('no html2canvas');
@@ -1059,11 +1003,9 @@
       }
     }
 
-    /* ====== Markdown renderer (safe subset) ====== */
     function mdToHtml(md){
       const esc = (s)=> String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
       const lines = String(md||'').replace(/\r\n?/g,'\n').split('\n');
-
       const inline = (t)=>{
         t = esc(t);
         t = t.replace(/`([^`]+?)`/g, '<code>$1</code>');
@@ -1072,10 +1014,8 @@
         t = t.replace(/_([^_]+?)_/g, '<em>$1</em>');
         return t;
       };
-
       let html = '';
       let inList = false;
-
       const flushList = ()=>{ if (inList){ html += '</ul>'; inList=false; } };
 
       for (let raw of lines){
@@ -1099,7 +1039,6 @@
       return html;
     }
 
-    /* ====== Utils ====== */
     function setVar(k, v){ document.documentElement.style.setProperty(k, v); }
     function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
     function nickOrAnon(n){ return (n.nick && String(n.nick).trim()) ? n.nick : '익명'; }
