@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>온라인 포스트잇 게시판</title>
   <style>
+    /* 라인1 전용 폰트 */
     @font-face {
       font-family: 'April16Promise';
       src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404-2@1.0/April16th-Promise.woff2') format('woff2');
       font-weight: 400;
       font-display: swap;
     }
+
     :root{
       --bg:#0f1115; --text:#e8eaed; --title-color:#ffffff; --title-align:center;
       --postit-image:none; --board-image:none; --note-size: 280px; --panel-width: 320px;
@@ -36,6 +38,7 @@
       align-items:center; gap:8px; padding:10px 12px;
       border-bottom:1px solid #20242b; background:#0b0e13ee; backdrop-filter: blur(6px);
     }
+
     .title{ text-align:var(--title-align); color:var(--title-color); font-weight:700; letter-spacing:.2px; overflow:hidden; }
     .title .line1, .title .line2, .title .lineCombined{
       font-size: var(--title-font-px);
@@ -135,46 +138,64 @@
     }
     .minimap canvas{ width:100%; height:100%; display:block; }
 
-    .overlay{
-      position:fixed; inset:0; z-index:2000; display:none;
-      background:#0b0e13f5; border-left:1px solid #1f2430; border-right:1px solid #1f2430;
-    }
-    .overlay.open{ display:block; }
-    .overlay .close{
-      position:absolute; left:50%; transform:translateX(-50%);
-      top:10px; right:auto;
-      background:#1a1f27; border:1px solid #252b35; color:#fff; border-radius:999px;
-      padding:10px 14px; min-width:44px; min-height:36px; line-height:1; font-weight:700;
-      z-index: 3000;
-    }
-    .overlay h2{ margin:8px 0 12px; font-size:18px; }
-    .overlay .inner{
-      position:absolute; left:0; right:0; bottom:0; top:56px;
-      overflow:auto; padding:0 20px 28px;
-      display: flex; flex-direction: column; align-items: center;
-    }
-    .kv{ display:grid; grid-template-columns:120px 1fr; gap:8px 12px; max-width:800px; margin-bottom:18px; }
-    .card{
-      background:#0f141c; border:1px solid #1f2430; border-radius:12px; padding:12px;
-      width: 100%; max-width: 880px; margin: 0 auto 16px;
-    }
-    .card h3{ margin:0 0 8px; font-size:15px; color:#b7c2cf; }
-    .card h3 a{ color:#7aa2ff; text-decoration:underline; }
-    .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
-    .tips li{ margin:6px 0; }
-    .md p{ margin: 8px 0; }
-    .md ul{ margin: 8px 0 8px 1.2rem; padding: 0; }
-    .md li{ margin: 4px 0; }
-    .md code{ background:#0b0e13; border:1px solid #1f2430; padding:1px 4px; border-radius:6px; font-family:ui-monospace,Menlo,Consolas,monospace; }
-    .md a{ color:#7aa2ff; text-decoration:underline; }
-  </style>
+    /* ===== Info Overlay ===== */
+
+  .overlay{
+    position:fixed; inset:0; z-index:2000; display:none;
+    background:#0b0e13f5; border-left:1px solid #1f2430; border-right:1px solid #1f2430;
+  }
+  .overlay.open{ display:block; }
+  .overlay .close{
+    position:absolute; left:50%; transform:translateX(-50%);
+    top:10px; right:auto;
+    background:#1a1f27; border:1px solid #252b35; color:#fff; border-radius:999px;
+    padding:10px 14px; min-width:44px; min-height:36px; line-height:1; font-weight:700;
+    z-index: 3000;
+  }
+  .overlay h2{ margin:8px 0 12px; font-size:18px; }
+
+  /* ✅ 가운데 정렬 핵심: inner를 flex 컨테이너로 만들고, .card에 auto margin */
+  .overlay .inner{
+    position:absolute; left:0; right:0; bottom:0; top:56px;
+    overflow:auto; padding:0 20px 28px;
+    z-index: 0;
+
+    /* ▼ 추가된 부분 */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* 자식 요소(카드)들을 수평 중앙 정렬 */
+  }
+
+  .kv{ display:grid; grid-template-columns:120px 1fr; gap:8px 12px; max-width:800px; margin-bottom:18px; }
+
+  .card{
+    background:#0f141c; border:1px solid #1f2430; border-radius:12px; padding:12px;
+
+    /* ▼ 변경된 부분: 가운데 정렬 & 반응형 폭 */
+    width: 100%;
+    max-width: 880px;
+    margin: 0 auto 16px; /* 좌우 auto로 중앙 정렬, 아래간격 16px */
+  }
+
+  .card h3{ margin:0 0 8px; font-size:15px; color:#b7c2cf; }
+  .card h3 a{ color:#7aa2ff; text-decoration:underline; }
+
+  .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
+  .tips li{ margin:6px 0; }
+  .md p{ margin: 8px 0; }
+  .md ul{ margin: 8px 0 8px 1.2rem; padding: 0; }
+  .md li{ margin: 4px 0; }
+  .md code{ background:#0b0e13; border:1px solid #1f2430; padding:1px 4px; border-radius:6px; font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .md a{ color:#7aa2ff; text-decoration:underline; }
+</style>
+
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 </head>
 <body>
   <div class="app">
     <div class="topbar" id="topbar">
       <button id="btnPanel" class="iconbtn" title="리스트" aria-label="리스트">🗂️</button>
-      <div class="title" id="title"></div>
+      <div class="title" id="title"><!-- JS에서 채움 --></div>
       <div class="right-actions">
         <button id="btnNew" class="btn primary" title="새 메모" aria-label="새 메모">＋</button>
         <button id="btnGo"  class="btn" style="display:none;" title="작성중으로 이동" aria-label="작성중으로 이동">🧭</button>
@@ -198,11 +219,14 @@
       <div class="board" id="board">
         <div class="world" id="world"></div>
       </div>
+
+      <!-- Minimap -->
       <div class="minimap" id="miniWrap"><canvas id="minimap"></canvas></div>
 
+      <!-- Info 오버레이 -->
       <div class="overlay" id="infoOverlay" aria-hidden="true" role="dialog" aria-label="안내">
         <button class="close" id="infoClose" data-action="close-overlay" aria-label="닫기">✕</button>
-        <div class="inner" id="infoBody"></div>
+        <div class="inner" id="infoBody"><!-- JS Render --></div>
       </div>
     </div>
   </div>
@@ -218,6 +242,9 @@
   </aside>
 
   <script>
+    /* ==========================================================
+     * GitHub 설정: 제목(기본/라인2) 전용 폰트
+     * ========================================================== */
     const GITHUB_SETTINGS = {
       titleFont: {
         enabled: true,
@@ -227,14 +254,17 @@
       }
     };
 
-    const API = 'https://script.google.com/macros/s/AKfycbx0VFUeG0A_srMNTXjTYRi4ULIL3sUv4lObDwrOfBuNHF5ii0_d5gNSDpJ7fW-9fhpBNw/exec'; // Apps Script /exec URL
+    /* ====== Config ====== */
+    const API = 'https://script.google.com/macros/s/AKfycbxeOSa1aNwnz1FLHWD1bFLpFzJF5bcnPJyKK6QjwHpjZFawZOP9bG5FOMkpq2vjZdtExA/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
     const CAMERA = { x: 0, y: 0, scale: 1, min: .2, max: 2 };
 
+    // 제목 한 줄 전환 임계값(px)
     const TITLE_ONE_LINE_BREAKPOINT = 1200;
 
+    /* ====== State / Elements ====== */
     const state = {
       owner: getOrSetOwner_(), settings: null, notes: [], draft: loadDraft_(),
       panelOpen: false, panelDock: 'left', panPrev: null,
@@ -265,6 +295,7 @@
     const pan = { raf:0, dx:0, dy:0, lastVX:0, lastVY:0, lastT:0 };
     function stopInertia(){ if (inertia.raf){ cancelAnimationFrame(inertia.raf); inertia.raf=0; } inertia.vx=0; inertia.vy=0; }
 
+    /* ====== Boot ====== */
     (async function init(){
       applyGithubTitleFont_();
       recalcTopbarHeight_();
@@ -286,10 +317,12 @@
         ro.observe($title);
       }
 
+      /* ⬇️ 첫 접속 시 Info 자동 오픈 */
       renderInfoOverlay();
       openInfo();
     })();
 
+    /* === (라인2/기본) 폰트 적용 === */
     function applyGithubTitleFont_(){
       const cfg = GITHUB_SETTINGS && GITHUB_SETTINGS.titleFont;
       if (!cfg || !cfg.enabled || !cfg.name || !cfg.url) return;
@@ -340,6 +373,7 @@
       const s = j.settings.values;
       state.settings = j.settings;
 
+      // 제목
       const line1 = toStr(s.screenTitleLine1 || s.screenTitle || '온라인 포스트잇 게시판');
       const line2 = toStr(s.screenTitleLine2 || '');
       state.titleParts = { l1: line1, l2: line2 };
@@ -382,6 +416,7 @@
       recalcTopbarHeight_();
     }
 
+    /* ====== 제목 DOM & 레이아웃 ====== */
     function renderTitleDOM(){
       const { l1, l2 } = state.titleParts;
       if (state.titleOneLine && l2){
@@ -408,6 +443,7 @@
       }
     }
 
+    /* ====== UI 바인딩 ====== */
     function bindUI(){
       document.getElementById('btnPanel').onclick = togglePanel;
 
@@ -416,7 +452,16 @@
       $zoomRangeTop.oninput = e => setZoomAtCenter(parseFloat(e.target.value));
       document.getElementById('capBoardTop').onclick = () => captureElem($board, 'board.png');
 
-      document.getElementById('infoTop').onclick = () => { renderInfoOverlay(); openInfo(); };
+      $btnNew.onclick = () => {
+        if (state.draft) { centerOnDraft(1.0); return; }
+        const wc = worldCenter();
+        createDraftAt({x: wc.x - NOTE.W/2, y: wc.y - NOTE.H/2}, true);
+      };
+      $btnDel.onclick = clearDraft;
+      $btnGo.onclick  = () => centerOnDraft(1.0);
+
+      // Info 버튼
+      $btnInfoTop.onclick = () => { renderInfoOverlay(); openInfo(); };
       const closeNow = (e)=>{ e.preventDefault(); e.stopPropagation(); closeInfo(); };
       ['pointerdown','touchstart','click'].forEach(evt=>{
         $infoClose.addEventListener(evt, closeNow, {passive:false});
@@ -425,15 +470,9 @@
         const btn = e.target.closest('#infoClose,[data-action="close-overlay"]');
         if (btn){ e.preventDefault(); closeInfo(); }
       });
-      $infoOverlay.addEventListener('click', (e)=>{ if (e.target === $infoOverlay) closeInfo(); });
-
-      $btnNew.onclick = () => {
-        if (state.draft) { centerOnDraft(1.0); return; }
-        const wc = worldCenter();
-        createDraftAt({x: wc.x - NOTE.W/2, y: wc.y - NOTE.H/2}, true);
-      };
-      $btnDel.onclick = clearDraft;
-      $btnGo.onclick  = () => centerOnDraft(1.0);
+      $infoOverlay.addEventListener('click', (e)=>{
+        if (e.target === $infoOverlay) closeInfo();
+      });
 
       $board.addEventListener('pointerdown', onPointerDown, {passive:false});
       $board.addEventListener('pointermove', onPointerMove,  {passive:false});
@@ -451,6 +490,7 @@
         const ae = document.activeElement;
         const isEditing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
         if (isEditing) return;
+
         if (e.key === 'Escape') {
           if ($infoOverlay.classList.contains('open')) { closeInfo(); return; }
           if (state.panelOpen) { togglePanel(); return; }
@@ -473,10 +513,12 @@
       if (j.ok) { state.notes = (j.data || []).map(sanitizeNote); renderAll(); }
     }
 
+    /* ====== Rendering ====== */
     function renderAll(){ renderNotes(); renderList(); updateTopbarActions(); updateMinimap(); }
 
     function renderNotes(){
       $world.innerHTML = '';
+
       for (const n of state.notes) {
         const el = document.createElement('div');
         el.className = 'note';
@@ -490,14 +532,18 @@
         el.style.width = NOTE.W+'px';
         el.style.height = NOTE.H+'px';
         if (state.zMap[n.id]) el.style.zIndex = state.zMap[n.id];
+
         el.innerHTML = `
           <div class="nick">${escapeHtml(toStr(n.nick || '익명'))}${n.status==='submitted'?' <small style="color:#555">· 승인대기</small>':''}</div>
           <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
         `;
+
         const body = el.querySelector('.body');
         autoFitText(body, n.fs || 14, 8);
+
         el.addEventListener('click', () => bringToFrontEl(el));
         el.addEventListener('dblclick', () => focusNote(n));
+
         $world.appendChild(el);
       }
 
@@ -533,6 +579,7 @@
             <button id="dDelete" class="del" title="삭제" aria-label="삭제">🗑️</button>
           </div>
         `;
+
         enableDrag(el, (dx, dy) => {
           d.x = (d.x||0) + dx / CAMERA.scale;
           d.y = (d.y||0) + dy / CAMERA.scale;
@@ -541,6 +588,7 @@
           el.style.left = d.x + 'px';
           el.style.top  = d.y + 'px';
         }, '.dragHandle');
+
         wireDraftForm_(el, d);
         $world.appendChild(el);
       }
@@ -575,6 +623,7 @@
       }
     }
 
+    /* ====== Info Overlay (시트 관리) ====== */
     function openInfo(){ $infoOverlay.classList.add('open'); $infoOverlay.setAttribute('aria-hidden','false'); }
     function closeInfo(){ $infoOverlay.classList.remove('open'); $infoOverlay.setAttribute('aria-hidden','true'); }
     function renderInfoOverlay(){
@@ -584,6 +633,7 @@
       const usageTitle = toStr(s.infoUsageTitle || '사용 방법');
       const usageMd    = toStr(s.infoUsageMarkdown || '');
 
+      // [C] 오송 안내 섹션
       const osEnabled = String(s.infoOsongEnabled || 'Yes').toLowerCase() !== 'no';
       const osTitle   = toStr(s.infoOsongTitle || '747오송역정류장');
       const osBody    = toStr(s.infoOsongBody || '기억을 잇는 모두의 정류장🚏 오송참사를 기억하고, 우리 모두가 다치지 않는 내일을 그리기 위해 행동합니다.');
@@ -628,6 +678,7 @@
       `;
     }
 
+    /* ====== Title auto-fit ====== */
     function fitTitle(){
       const container = $title;
       if (!container) return;
@@ -660,6 +711,7 @@
       });
     }
 
+    /* ====== Draft ====== */
     function wireDraftForm_(root, d){
       const $nick = root.querySelector('#dNick');
       const $text = root.querySelector('#dText');
@@ -740,6 +792,7 @@
     function saveDraft_(d){ localStorage.setItem('mn_draft', JSON.stringify(d)); updateTopbarActions(); }
     function loadDraft_(){ try{ return JSON.parse(localStorage.getItem('mn_draft')||'null'); }catch(e){ return null; } }
 
+    /* ====== 카메라/좌표 ====== */
     function toWorld(cx, cy){
       const r = $board.getBoundingClientRect();
       const sx = cx - r.left, sy = cy - r.top;
@@ -776,6 +829,7 @@
     function updateCamera(x,y,scale){ CAMERA.x = x; CAMERA.y = y; CAMERA.scale = scale; $zoomRangeTop.value = CAMERA.scale; setCamVars_(); }
     function setCamVars_(){ setVar('--scale', CAMERA.scale); setVar('--cam-x', CAMERA.x+'px'); setVar('--cam-y', CAMERA.y+'px'); updateMinimap(); }
 
+    /* ====== Pan / Wheel / Pinch ====== */
     const pointers = new Map();
     const pinch = { active:false, lastDist:0, lastMid:{x:0,y:0} };
 
@@ -907,6 +961,7 @@
       }
     }
 
+    /* ====== Minimap ====== */
     function updateMinimap(){
       const ctx = $minimap.getContext('2d');
       const dpr = window.devicePixelRatio || 1;
@@ -958,6 +1013,7 @@
     $miniWrap.addEventListener('pointerup', mmEnd);
     $miniWrap.addEventListener('pointercancel', mmEnd);
 
+    /* ====== Capture ====== */
     async function captureElem(el, filename){
       try{
         if (!window.html2canvas) throw new Error('no html2canvas');
@@ -971,6 +1027,7 @@
       }
     }
 
+    /* ====== Markdown renderer (safe subset) ====== */
     function mdToHtml(md){
       const esc = (s)=> String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
       const lines = String(md||'').replace(/\r\n?/g,'\n').split('\n');
@@ -1009,6 +1066,7 @@
       return html;
     }
 
+    /* ====== Utils ====== */
     function setVar(k, v){ document.documentElement.style.setProperty(k, v); }
     function toStr(v){ return v == null ? '' : (typeof v === 'string' ? v : String(v)); }
     function nickOrAnon(n){ return (n.nick && String(n.nick).trim()) ? n.nick : '익명'; }
@@ -1077,9 +1135,9 @@
 
     function updateTopbarActions(){
       const hasDraft = !!state.draft;
-      document.getElementById('btnNew').style.display = hasDraft ? 'none' : '';
-      document.getElementById('btnGo').style.display  = hasDraft ? '' : 'none';
-      document.getElementById('btnDel').style.display = hasDraft ? '' : 'none';
+      $btnNew.style.display = hasDraft ? 'none' : '';
+      $btnGo.style.display  = hasDraft ? '' : 'none';
+      $btnDel.style.display = hasDraft ? '' : 'none';
     }
 
     function enableDrag(el, ondrag, handleSelector){
@@ -1100,8 +1158,6 @@
       handle.addEventListener('pointerup', end);
       handle.addEventListener('pointercancel', end);
     }
-
-    function setVar(k, v){ document.documentElement.style.setProperty(k, v); }
   </script>
 </body>
 </html>
