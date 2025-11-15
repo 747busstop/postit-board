@@ -5,11 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>온라인 포스트잇 게시판</title>
   <style>
-    /* 라인1 전용 폰트 */
+    /* ===== 제목 1줄 전용 폰트(기존) ===== */
     @font-face {
       font-family: 'April16Promise';
       src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404-2@1.0/April16th-Promise.woff2') format('woff2');
       font-weight: 400;
+      font-display: swap;
+    }
+    /* ===== 메모 본문용 2종 폰트 추가 ===== */
+    @font-face {
+      font-family: 'GilbutTg';
+      src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2112@1.0/GilbeotTG.woff') format('woff');
+      font-weight: normal;
       font-display: swap;
     }
 
@@ -131,14 +138,21 @@
     .fsDial input[type="range"]{ writing-mode: vertical-lr; direction: rtl; appearance: none; width: 28px; height: 140px; background:transparent; }
     .fsVal{ color:#111; font-size:12px; text-align:center; margin-top:4px; }
 
+    /* 폰트 선택 바 */
+    .fontBar{
+      position:absolute; left:-2px; bottom:-94px; display:flex; gap:8px; justify-content:center; width:100%;
+    }
+    .fontBtn{
+      padding:6px 10px; border-radius:10px; border:2px dotted #111; background:#fff; color:#111; min-width:56px; font-weight:700;
+    }
+    .fontBtn.active{ background:#e6ffb8; }
+
     .minimap{
       position:absolute; right:12px; bottom:12px; width:160px; height:160px;
       background:#0b0e13cc; border:1px solid #293241; border-radius:12px; overflow:hidden; z-index:45;
       box-shadow:0 6px 16px rgba(0,0,0,.25);
     }
     .minimap canvas{ width:100%; height:100%; display:block; }
-
-    /* ===== Info Overlay ===== */
 
   .overlay{
     position:fixed; inset:0; z-index:2000; display:none;
@@ -154,29 +168,23 @@
   }
   .overlay h2{ margin:8px 0 12px; font-size:18px; }
 
-  /* ✅ 가운데 정렬 핵심: inner를 flex 컨테이너로 만들고, .card에 auto margin */
   .overlay .inner{
     position:absolute; left:0; right:0; bottom:0; top:56px;
     overflow:auto; padding:0 20px 28px;
     z-index: 0;
-
-    /* ▼ 추가된 부분 */
     display: flex;
     flex-direction: column;
-    align-items: center; /* 자식 요소(카드)들을 수평 중앙 정렬 */
+    align-items: center;
   }
 
   .kv{ display:grid; grid-template-columns:120px 1fr; gap:8px 12px; max-width:800px; margin-bottom:18px; }
 
   .card{
     background:#0f141c; border:1px solid #1f2430; border-radius:12px; padding:12px;
-
-    /* ▼ 변경된 부분: 가운데 정렬 & 반응형 폭 */
     width: 100%;
     max-width: 880px;
-    margin: 0 auto 16px; /* 좌우 auto로 중앙 정렬, 아래간격 16px */
+    margin: 0 auto 16px;
   }
-
   .card h3{ margin:0 0 8px; font-size:15px; color:#b7c2cf; }
   .card h3 a{ color:#7aa2ff; text-decoration:underline; }
 
@@ -195,7 +203,7 @@
   <div class="app">
     <div class="topbar" id="topbar">
       <button id="btnPanel" class="iconbtn" title="리스트" aria-label="리스트">🗂️</button>
-      <div class="title" id="title"><!-- JS에서 채움 --></div>
+      <div class="title" id="title"></div>
       <div class="right-actions">
         <button id="btnNew" class="btn primary" title="새 메모" aria-label="새 메모">＋</button>
         <button id="btnGo"  class="btn" style="display:none;" title="작성중으로 이동" aria-label="작성중으로 이동">🧭</button>
@@ -226,7 +234,7 @@
       <!-- Info 오버레이 -->
       <div class="overlay" id="infoOverlay" aria-hidden="true" role="dialog" aria-label="안내">
         <button class="close" id="infoClose" data-action="close-overlay" aria-label="닫기">✕</button>
-        <div class="inner" id="infoBody"><!-- JS Render --></div>
+        <div class="inner" id="infoBody"></div>
       </div>
     </div>
   </div>
@@ -255,7 +263,7 @@
     };
 
     /* ====== Config ====== */
-    const API = 'https://script.google.com/macros/s/AKfycby6uWhbHbHXEBah-VH3mu_ijzAFtXtG1coYO_KeUt-BxMqGYtw9hUNs01Y75swxR00K/exec'; // Apps Script /exec URL
+    const API = 'https://script.google.com/macros/s/AKfycbzcDkyFyJXmZpQN93Xmtj7PO7XQU-iBmEYQVP20fxKqYQxlWSe_ZmENpvMHOjp44piv/exec'; // Apps Script /exec URL
     const NOTE = { W: 280, H: 280 };
     const WORLD = { W: 30000, H: 30000 };
     const BOUNDS = { W: 10000, H: 10000 };
@@ -263,6 +271,13 @@
 
     // 제목 한 줄 전환 임계값(px)
     const TITLE_ONE_LINE_BREAKPOINT = 1200;
+
+    // 메모 본문 폰트 2종(레이블/패밀리/미리보기용 CSS)
+    const NOTE_FONTS = [
+      { key:'April16Promise', label:'사월십육일체', css: `'April16Promise', 'Apple SD Gothic Neo','Malgun Gothic',sans-serif` },
+      { key:'GilbutTg',       label:'GilbutTg',     css: `'GilbutTg', 'Apple SD Gothic Neo','Malgun Gothic',sans-serif` }
+    ];
+    const DEFAULT_FONT_KEY = 'April16Promise';
 
     /* ====== State / Elements ====== */
     const state = {
@@ -317,7 +332,6 @@
         ro.observe($title);
       }
 
-      /* ⬇️ 첫 접속 시 Info 자동 오픈 */
       renderInfoOverlay();
       openInfo();
     })();
@@ -373,7 +387,6 @@
       const s = j.settings.values;
       state.settings = j.settings;
 
-      // 제목
       const line1 = toStr(s.screenTitleLine1 || s.screenTitle || '온라인 포스트잇 게시판');
       const line2 = toStr(s.screenTitleLine2 || '');
       state.titleParts = { l1: line1, l2: line2 };
@@ -460,7 +473,6 @@
       $btnDel.onclick = clearDraft;
       $btnGo.onclick  = () => centerOnDraft(1.0);
 
-      // Info 버튼
       $btnInfoTop.onclick = () => { renderInfoOverlay(); openInfo(); };
       const closeNow = (e)=>{ e.preventDefault(); e.stopPropagation(); closeInfo(); };
       ['pointerdown','touchstart','click'].forEach(evt=>{
@@ -516,6 +528,11 @@
     /* ====== Rendering ====== */
     function renderAll(){ renderNotes(); renderList(); updateTopbarActions(); updateMinimap(); }
 
+    function fontCssFromKey(key){
+      const f = NOTE_FONTS.find(x=>x.key===key);
+      return f ? f.css : NOTE_FONTS[0].css;
+    }
+
     function renderNotes(){
       $world.innerHTML = '';
 
@@ -533,9 +550,11 @@
         el.style.height = NOTE.H+'px';
         if (state.zMap[n.id]) el.style.zIndex = state.zMap[n.id];
 
+        const bodyStyle = `font-size:${(n.fs||14)}pt; font-family:${fontCssFromKey(n.ff||DEFAULT_FONT_KEY)};`;
+
         el.innerHTML = `
           <div class="nick">${escapeHtml(toStr(n.nick || '익명'))}${n.status==='submitted'?' <small style="color:#555">· 승인대기</small>':''}</div>
-          <div class="body" style="font-size:${(n.fs||14)}pt">${escapeHtml(toStr(n.text))}</div>
+          <div class="body" style="${bodyStyle}">${escapeHtml(toStr(n.text))}</div>
         `;
 
         const body = el.querySelector('.body');
@@ -557,6 +576,7 @@
         el.style.top  = (d.y || 0) + 'px';
         el.style.width = NOTE.W+'px';
         el.style.height = NOTE.H+'px';
+        const bodyFontCss = fontCssFromKey(d.ff || DEFAULT_FONT_KEY);
         el.innerHTML = `
           <div class="dragHandle" title="드래그하여 이동" aria-label="드래그하여 이동">
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false" role="img">
@@ -569,10 +589,15 @@
             </svg>
           </div>
           <input id="dNick" class="nickInput" maxlength="27" placeholder="닉네임(최대 27자)" value="${escapeAttr(toStr(d.nick||''))}">
-          <textarea id="dText" class="textInput" placeholder="${placeholder}" style="font-size:${(d.fs||16)}pt">${escapeText(toStr(d.text||''))}</textarea>
+          <textarea id="dText" class="textInput" placeholder="${placeholder}" style="font-size:${(d.fs||16)}pt; font-family:${bodyFontCss}">${escapeText(toStr(d.text||''))}</textarea>
           <div class="fsDial">
             <input id="dFs" type="range" min="8" max="36" step="1" value="${d.fs||16}">
             <div class="fsVal">${d.fs||16}pt</div>
+          </div>
+          <div class="fontBar">
+            ${NOTE_FONTS.map(f=>`
+              <button class="fontBtn ${((d.ff||DEFAULT_FONT_KEY)===f.key)?'active':''}" data-font="${escapeAttr(f.key)}" style="font-family:${f.css}">${escapeHtml(f.label)}</button>
+            `).join('')}
           </div>
           <div class="ctrlBar">
             <button id="dSubmit" title="제출" aria-label="제출">✓</button>
@@ -633,7 +658,6 @@
       const usageTitle = toStr(s.infoUsageTitle || '사용 방법');
       const usageMd    = toStr(s.infoUsageMarkdown || '');
 
-      // [C] 오송 안내 섹션
       const osEnabled = String(s.infoOsongEnabled || 'Yes').toLowerCase() !== 'no';
       const osTitle   = toStr(s.infoOsongTitle || '747오송역정류장');
       const osBody    = toStr(s.infoOsongBody || '기억을 잇는 모두의 정류장🚏 오송참사를 기억하고, 우리 모두가 다치지 않는 내일을 그리기 위해 행동합니다.');
@@ -720,12 +744,25 @@
       const $del    = root.querySelector('#dDelete');
       const $fsVal  = root.querySelector('.fsVal');
 
+      // 폰트 토글 버튼 바인딩
+      root.querySelectorAll('.fontBtn').forEach(btn=>{
+        btn.onclick = ()=>{
+          root.querySelectorAll('.fontBtn').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+          const key = btn.getAttribute('data-font');
+          d.ff = key || DEFAULT_FONT_KEY;
+          $text.style.fontFamily = fontCssFromKey(d.ff);
+          saveDraft_(d);
+        };
+      });
+
       const sync = () => {
         d.nick = ($nick.value || '').slice(0,27).trim();
         d.text = $text.value;
         d.fs = clamp(parseInt($fs.value,10)||16, 8, 36);
         $fsVal.textContent = d.fs+'pt';
         $text.style.fontSize = d.fs+'pt';
+        if (!d.ff) d.ff = DEFAULT_FONT_KEY;
         saveDraft_(d);
         updateTopbarActions();
       };
@@ -752,12 +789,13 @@
         fd.set('x', x);
         fd.set('y', y);
         fd.set('fs', d.fs||16);
+        fd.set('ff', d.ff || DEFAULT_FONT_KEY);
 
         try{
           const res = await fetch(API, { method:'POST', body: fd, headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' } });
           const j = await res.json();
           if (!j.ok) { alert(j.error || '제출 실패'); $submit.disabled=false; $del.disabled=false; $submit.textContent='✓'; return; }
-          const newNote = { id: j.id, owner: state.owner, nick: d.nick, text: d.text, status: 'submitted', ts: j.ts, tsKR: j.tsKR, x, y, fs: d.fs||16 };
+          const newNote = { id: j.id, owner: state.owner, nick: d.nick, text: d.text, status: 'submitted', ts: j.ts, tsKR: j.tsKR, x, y, fs: d.fs||16, ff: d.ff||DEFAULT_FONT_KEY };
           state.notes.push(sanitizeNote(newNote));
           state.draft = null; localStorage.removeItem('mn_draft');
           renderAll();
@@ -775,7 +813,7 @@
       if (state.draft) { centerOnDraft(1.0); return; }
       const maxX = Math.max(0, Math.min(WORLD.W, BOUNDS.W) - NOTE.W);
       const maxY = Math.max(0, Math.min(WORLD.H, BOUNDS.H) - NOTE.H);
-      const d = { nick:'', text:'', x: clamp(Math.round(pos.x||0), 0, maxX), y: clamp(Math.round(pos.y||0), 0, maxY), fs: 16 };
+      const d = { nick:'', text:'', x: clamp(Math.round(pos.x||0), 0, maxX), y: clamp(Math.round(pos.y||0), 0, maxY), fs: 16, ff: DEFAULT_FONT_KEY };
       state.draft = d; saveDraft_(state.draft); renderAll();
       if (zoomToCenter) centerOnDraft(1.0);
     }
@@ -1096,7 +1134,8 @@
         nick: toStr(n.nick), text: toStr(n.text), tsKR: toStr(n.tsKR), ts: toStr(n.ts),
         status: (n.status||'').toString().toLowerCase(),
         x: clamp(Number(n.x)||0, 0, maxX), y: clamp(Number(n.y)||0, 0, maxY),
-        fs: clamp(Number(n.fs) || 16, 8, 36)
+        fs: clamp(Number(n.fs) || 16, 8, 36),
+        ff: (n.ff && NOTE_FONTS.some(f=>f.key===n.ff)) ? n.ff : DEFAULT_FONT_KEY
       };
     }
 
